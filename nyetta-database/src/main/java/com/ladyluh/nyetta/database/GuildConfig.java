@@ -1,0 +1,46 @@
+package com.ladyluh.nyetta.database;
+
+public class GuildConfig {
+    public String guildId;
+    public String logChannelId;
+    public String welcomeChannelId;
+    public String autoAssignRoleId;
+    public String tempHubChannelId;
+    public String tempChannelCategoryId;
+    public String tempChannelNamePrefix;
+    public Integer defaultTempChannelUserLimit;
+    public Integer defaultTempChannelLock;
+
+    public GuildConfig(
+            String guildId,
+            String logChannelId,
+            String welcomeChannelId,
+            String autoAssignRoleId,
+            String tempHubChannelId,
+            String tempChannelCategoryId,
+            String tempChannelNamePrefix,
+            Integer defaultTempChannelUserLimit,
+            Integer defaultTempChannelLock) {
+        this.guildId = guildId;
+        this.logChannelId = logChannelId;
+        this.welcomeChannelId = welcomeChannelId;
+        this.autoAssignRoleId = autoAssignRoleId;
+        this.tempHubChannelId = tempHubChannelId;
+        this.tempChannelCategoryId = tempChannelCategoryId;
+        this.tempChannelNamePrefix = tempChannelNamePrefix;
+        this.defaultTempChannelUserLimit = defaultTempChannelUserLimit;
+        this.defaultTempChannelLock = defaultTempChannelLock;
+    }
+
+    public GuildConfig(String guildId) {
+        this.guildId = guildId;
+        this.logChannelId = "";
+        this.welcomeChannelId = "";
+        this.autoAssignRoleId = "";
+        this.tempHubChannelId = "";
+        this.tempChannelCategoryId = "";
+        this.tempChannelNamePrefix = "Sala de ";
+        this.defaultTempChannelUserLimit = 5;
+        this.defaultTempChannelLock = 0;
+    }
+}

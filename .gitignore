@@ -1,0 +1,14 @@
+.env
+.env.local
+*.env
+!.env.example
+target/
+*.db
+data/
+recordings/
+.idea/
+.vscode/
+*.iml
+.claude/
+apache-maven*
+dependency-reduced-pom.xml
