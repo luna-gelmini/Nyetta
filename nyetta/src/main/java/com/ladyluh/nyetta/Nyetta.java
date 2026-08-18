@@ -93,7 +93,7 @@ public class Nyetta {
                 GatewayIntent.GUILD_VOICE_STATES);
 
         String guildId = config.getGuildId();
-        LOGGER.info("Nyetta 0.1.0 · Fluxer4J");
+        LOGGER.info("Nyetta 0.1.0 · Fluxer4J 1.0.1 · pid {}", ProcessHandle.current().pid());
         LOGGER.info("prefix {} · guild {} · hub {} · category {}",
                 config.getCommandPrefix(),
                 blankToDash(guildId),

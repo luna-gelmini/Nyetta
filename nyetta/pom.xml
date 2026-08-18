@@ -21,7 +21,7 @@
         <dependency>
             <groupId>app.fluxer4j</groupId>
             <artifactId>fluxer4j</artifactId>
-            <version>1.0.0</version>
+            <version>${fluxer4j.version}</version>
         </dependency>
         <dependency>
             <groupId>org.xerial</groupId>

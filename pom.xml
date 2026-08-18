@@ -24,7 +24,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <okhttp.version>4.12.0</okhttp.version>
         <jackson.version>2.15.2</jackson.version>
-        <fluxer4j.version>1.0.0</fluxer4j.version>
+        <fluxer4j.version>1.0.1</fluxer4j.version>
     </properties>
 
     <dependencyManagement>

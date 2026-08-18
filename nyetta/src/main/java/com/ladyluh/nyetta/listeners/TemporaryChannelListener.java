@@ -1,7 +1,9 @@
 package com.ladyluh.nyetta.listeners;
 
 import flux.api.FluxClient;
+import flux.api.entities.Guild;
 import flux.api.entities.TargetType;
+import flux.api.entities.User;
 import flux.api.entities.channel.Channel;
 import flux.api.entities.channel.ChannelType;
 import flux.api.event.Event;
@@ -40,6 +42,7 @@ public class TemporaryChannelListener implements EventListener {
     private final ConcurrentHashMap<String, CompletableFuture<Channel>> userCreationAttempts = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ReentrantLock> channelLocks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Boolean> pendingDeletions = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> pendingMoves = new ConcurrentHashMap<>();
 
     public TemporaryChannelListener(ConfigManager config, FluxClient client, DatabaseManager dbManager,
             VoiceStateCacheManager voiceStateCacheManager, TemporaryChannelTreeService treeService) {
@@ -54,6 +57,12 @@ public class TemporaryChannelListener implements EventListener {
     public void onEvent(Event event) {
         if (event instanceof GuildCreateEvent gcEvent) {
             voiceStateCacheManager.onGuildCreate(gcEvent);
+            Guild guild = gcEvent.getGuild();
+            if (guild != null) {
+                String guildId = guild.getId();
+                purgeStaleTemporaryChannels(guildId);
+                logBotVoicePermissions(guildId);
+            }
         } else if (event instanceof VoiceStateUpdateEvent vsEvent) {
             handleVoiceStateUpdate(vsEvent);
         }
@@ -109,18 +118,22 @@ public class TemporaryChannelListener implements EventListener {
             return;
         }
 
-        LOGGER.debug("Voice state change for user {}: {} -> {}", userId, oldChannelId, newChannelId);
+        LOGGER.debug("Voice state change for user {}: {} -> {} (connection {})",
+                userId, oldChannelId, newChannelId, event.getConnectionId());
 
         if (oldChannelId != null) {
             boolean wasChannelEmpty = voiceStateCacheManager.getMembersInVoiceChannel(guildId, oldChannelId)
                     .size() <= 1;
             voiceStateCacheManager.onVoiceStateUpdate(event);
-            checkChannelOnUserLeave(guildId, oldChannelId, userId, wasChannelEmpty);
+            if (!(newChannelId == null && pendingMoves.containsKey(userId))) {
+                checkChannelOnUserLeave(guildId, oldChannelId, userId, wasChannelEmpty);
+            }
         } else {
             voiceStateCacheManager.onVoiceStateUpdate(event);
         }
 
         if (newChannelId != null) {
+            pendingMoves.remove(userId);
             dbManager.getGuildConfig(guildId)
                     .thenAccept(configOpt -> {
                         GuildConfig guildConfig = applyEnvDefaults(configOpt.orElse(new GuildConfig(guildId)));
@@ -137,42 +150,229 @@ public class TemporaryChannelListener implements EventListener {
     }
 
     private void handleHubJoin(VoiceStateUpdateEvent event, String guildId, String userId, GuildConfig guildConfig) {
+        CompletableFuture<Channel> marker = new CompletableFuture<>();
+        if (userCreationAttempts.putIfAbsent(userId, marker) != null) {
+            LOGGER.debug("Ignoring duplicate hub join for {} (already creating or moving).", userId);
+            return;
+        }
+        pendingMoves.put(userId, "");
+
         dbManager.getTemporaryChannelByOwner(guildId, userId)
-                .thenAccept(existingChannelOpt -> {
+                .thenCompose(existingChannelOpt -> {
                     if (existingChannelOpt.isPresent()) {
                         String existingChannelId = existingChannelOpt.get().channelId;
-                        LOGGER.info("User {} already has channel {}. Moving.", userId, existingChannelId);
-                        client.modifyGuildMemberVoiceChannel(guildId, userId, existingChannelId)
-                                .exceptionally(ex -> {
-                                    LOGGER.error("Failed to move user {} to existing channel:", userId, ex);
-                                    return null;
-                                });
-                        return;
-                    }
-
-                    userCreationAttempts.computeIfAbsent(userId, k -> {
-                        LOGGER.info("User {} joined the hub. Creating temporary channel.", userId);
-                        java.util.concurrent.atomic.AtomicReference<String> createdChannelIdRef = new java.util.concurrent.atomic.AtomicReference<>();
-                        return createTemporaryChannelForUser(event, guildId, userId, guildConfig, createdChannelIdRef)
-                                .whenComplete((channel, ex) -> {
-                                    userCreationAttempts.remove(userId);
+                        return client.getChannelById(existingChannelId)
+                                .thenCompose(channel -> moveUserToTemporaryChannel(event, guildId, userId,
+                                        existingChannelId))
+                                .handle((ok, ex) -> {
+                                    if (ex != null && isNotFound(ex)) {
+                                        LOGGER.warn("Stale temp channel {} for user {}. Recreating.", existingChannelId,
+                                                userId);
+                                        return dbManager.removeTemporaryChannel(existingChannelId)
+                                                .thenCompose(v -> createTemporaryChannelForUser(event, guildId, userId,
+                                                        guildConfig, new java.util.concurrent.atomic.AtomicReference<>()));
+                                    }
                                     if (ex != null) {
+                                        logVoiceMoveFailure(userId, existingChannelId, ex);
+                                        return CompletableFuture.<Channel>failedFuture(ex);
+                                    }
+                                    return CompletableFuture.completedFuture((Channel) null);
+                                })
+                                .thenCompose(f -> f);
+                    }
+                    LOGGER.info("User {} joined the hub. Creating temporary channel.", userId);
+                    java.util.concurrent.atomic.AtomicReference<String> createdChannelIdRef = new java.util.concurrent.atomic.AtomicReference<>();
+                    return createTemporaryChannelForUser(event, guildId, userId, guildConfig, createdChannelIdRef)
+                            .whenComplete((channel, ex) -> {
+                                if (ex != null) {
+                                    pendingMoves.remove(userId);
+                                    if (isMissingPermissions(ex)) {
+                                        LOGGER.error(
+                                                "Temporary channel created but bot cannot move user {} (403). "
+                                                        + "If this user is the guild owner or has a higher role than the bot, Fluxer will refuse the move.",
+                                                userId);
+                                        String keptChannelId = createdChannelIdRef.get();
+                                        if (keptChannelId != null) {
+                                            LOGGER.warn(
+                                                    "Keeping channel {} — join it manually until permissions/hierarchy allow the move.",
+                                                    keptChannelId);
+                                        }
+                                    } else if (isUserNotInVoice(ex)) {
+                                        LOGGER.warn(
+                                                "User {} left voice before the move finished. Keeping the created room.",
+                                                userId);
+                                    } else {
                                         LOGGER.error("Failed to create temporary channel for {}:", userId, ex);
                                         String createdChannelId = createdChannelIdRef.get();
                                         if (createdChannelId != null) {
-                                            LOGGER.warn("Cleaning up orphaned channel {} after failure.", createdChannelId);
+                                            LOGGER.warn("Cleaning up orphaned channel {} after failure.",
+                                                    createdChannelId);
                                             deleteTemporaryChannel(createdChannelId);
                                         }
-                                    } else if (channel != null) {
-                                        LOGGER.info("Channel {} created for {}.", channel.getId(), userId);
                                     }
+                                } else if (channel != null) {
+                                    LOGGER.info("Channel {} created and user moved for {}.", channel.getId(), userId);
+                                }
+                            });
+                })
+                .whenComplete((channel, ex) -> {
+                    if (ex != null) {
+                        marker.completeExceptionally(ex);
+                    } else {
+                        marker.complete(channel);
+                    }
+                    userCreationAttempts.remove(userId, marker);
+                });
+    }
+
+    private CompletableFuture<Void> moveUserToTemporaryChannel(VoiceStateUpdateEvent event, String guildId,
+            String userId, String channelId) {
+        LOGGER.info("User {} already has channel {}. Moving.", userId, channelId);
+        pendingMoves.put(userId, channelId);
+        return moveUserToChannelWithFallback(event, guildId, userId, channelId)
+                .whenComplete((ok, ex) -> {
+                    if (ex != null) {
+                        pendingMoves.remove(userId, channelId);
+                        logVoiceMoveFailure(userId, channelId, ex);
+                    }
+                });
+    }
+
+    private CompletableFuture<Void> moveUserToChannelWithFallback(VoiceStateUpdateEvent event, String guildId,
+            String userId, String channelId) {
+        String connectionId = event.getConnectionId();
+        return client.modifyGuildMemberVoiceChannel(guildId, userId, channelId, connectionId)
+                .exceptionallyCompose(ex -> {
+                    if (isMissingPermissions(ex) || isUserNotInVoice(ex)) {
+                        return CompletableFuture.failedFuture(ex);
+                    }
+                    LOGGER.warn("Move with connection_id {} failed for {}, retrying without it.",
+                            connectionId, userId);
+                    return client.modifyGuildMemberVoiceChannel(guildId, userId, channelId, null);
+                });
+    }
+
+    private void purgeStaleTemporaryChannels(String guildId) {
+        dbManager.getTemporaryChannelsByGuild(guildId)
+                .thenAccept(channels -> {
+                    if (channels.isEmpty()) {
+                        return;
+                    }
+                    LOGGER.info("Checking {} temporary channel record(s) for guild {}.", channels.size(), guildId);
+                    for (TemporaryChannelRecord record : channels) {
+                        client.getChannelById(record.channelId)
+                                .exceptionally(ex -> {
+                                    if (isNotFound(ex)) {
+                                        LOGGER.warn("Removing stale temp channel {} from DB (channel no longer exists).",
+                                                record.channelId);
+                                        dbManager.removeTemporaryChannel(record.channelId)
+                                                .exceptionally(dbEx -> {
+                                                    LOGGER.error("Failed to remove stale channel {} from DB:",
+                                                            record.channelId, dbEx);
+                                                    return null;
+                                                });
+                                    } else {
+                                        LOGGER.error("Failed to verify temp channel {}:", record.channelId, ex);
+                                    }
+                                    return null;
                                 });
-                    });
+                    }
                 })
                 .exceptionally(ex -> {
-                    LOGGER.error("Failed to check existing channel for {}:", userId, ex);
+                    LOGGER.error("Failed to purge stale temporary channels for guild {}:", guildId, ex);
                     return null;
                 });
+    }
+
+    private static boolean isChannelAlreadyDeleted(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && (message.contains("404") || message.contains("UNKNOWN_CHANNEL")
+                    || message.contains("No content to map"))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static boolean isNotFound(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && (message.contains("404") || message.contains("UNKNOWN_CHANNEL"))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static boolean isUserNotInVoice(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && (message.contains("USER_NOT_IN_VOICE") || message.contains("isn't in voice"))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static boolean isMissingPermissions(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null
+                    && (message.contains("403") || message.contains("MISSING_PERMISSIONS"))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private void logBotVoicePermissions(String guildId) {
+        User self = client.getSelfUser();
+        if (self == null) {
+            return;
+        }
+        client.getGuildMember(guildId, self.getId())
+                .thenCompose(member -> member.hasPermissions(
+                        EnumSet.of(Permission.MOVE_MEMBERS, Permission.CONNECT, Permission.MANAGE_CHANNELS)))
+                .thenAccept(hasAll -> {
+                    if (hasAll) {
+                        LOGGER.info("Bot has MOVE_MEMBERS, CONNECT, and MANAGE_CHANNELS in guild {}.", guildId);
+                    } else {
+                        LOGGER.warn(
+                                "Bot is missing voice move permissions in guild {}. "
+                                        + "Temp rooms will be created but users will not be auto-moved. "
+                                        + "Enable MOVE_MEMBERS + CONNECT on the bot role and place it above target members.",
+                                guildId);
+                    }
+                })
+                .exceptionally(ex -> {
+                    LOGGER.warn("Could not verify bot permissions in guild {}:", guildId, ex);
+                    return null;
+                });
+    }
+
+    private void logVoiceMoveFailure(String userId, String channelId, Throwable ex) {
+        if (isUserNotInVoice(ex)) {
+            LOGGER.warn("User {} is no longer in voice; skipping move to {}.", userId, channelId);
+            return;
+        }
+        if (isMissingPermissions(ex)) {
+            LOGGER.error(
+                    "Cannot move user {} to channel {}: Fluxer returned 403. "
+                            + "Guild owners and members with a higher role than the bot cannot be moved, "
+                            + "even if MOVE_MEMBERS is enabled.",
+                    userId, channelId);
+            return;
+        }
+        LOGGER.error("Failed to move user {} to channel {}:", userId, channelId, ex);
     }
 
     private CompletableFuture<Channel> createTemporaryChannelForUser(VoiceStateUpdateEvent event, String guildId,
@@ -231,16 +431,24 @@ public class TemporaryChannelListener implements EventListener {
                                             .thenCompose(v -> {
                                                 String currentChannel = voiceStateCacheManager
                                                         .getUserVoiceChannelId(guildId, userId);
-                                                if (currentChannel == null
-                                                        || !currentChannel.equals(guildConfig.tempHubChannelId)) {
+                                                if (currentChannel != null
+                                                        && !currentChannel.equals(guildConfig.tempHubChannelId)
+                                                        && !currentChannel.equals(channelId)) {
                                                     LOGGER.warn(
                                                             "User {} left the hub before being moved. Channel {} will be cleaned up.",
                                                             userId, channelId);
                                                     deleteTemporaryChannel(channelId);
                                                     return CompletableFuture.completedFuture(createdChannel);
                                                 }
-                                                return client.modifyGuildMemberVoiceChannel(guildId, userId, channelId)
-                                                        .thenApply(v2 -> createdChannel);
+                                                pendingMoves.put(userId, channelId);
+                                                return moveUserToChannelWithFallback(event, guildId, userId, channelId)
+                                                        .whenComplete((ok, moveEx) -> {
+                                                            if (moveEx != null) {
+                                                                pendingMoves.remove(userId, channelId);
+                                                                logVoiceMoveFailure(userId, channelId, moveEx);
+                                                            }
+                                                        })
+                                                        .thenCompose(ignored -> CompletableFuture.completedFuture(createdChannel));
                                             });
                                 });
                     });
@@ -437,9 +645,8 @@ public class TemporaryChannelListener implements EventListener {
                         LOGGER.info("Channel {} deleted from Fluxer. Removing from DB.", channelId);
                         return dbManager.removeTemporaryChannel(channelId);
                     }
-                    String message = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
-                    if (message != null && message.contains("404")) {
-                        LOGGER.warn("Channel {} was already deleted from Fluxer (404). Removing from DB.", channelId);
+                    if (isChannelAlreadyDeleted(ex)) {
+                        LOGGER.info("Channel {} deleted from Fluxer. Removing from DB.", channelId);
                         return dbManager.removeTemporaryChannel(channelId);
                     }
                     LOGGER.error("Failed to delete channel {}:", channelId, ex);

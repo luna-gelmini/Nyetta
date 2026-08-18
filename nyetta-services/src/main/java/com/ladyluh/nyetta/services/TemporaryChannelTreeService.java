@@ -103,7 +103,8 @@ public class TemporaryChannelTreeService {
                     }
                     String errorMessage = ex.getMessage();
                     if (errorMessage != null
-                            && (errorMessage.contains("10003") || errorMessage.contains("Unknown Channel"))) {
+                            && (errorMessage.contains("10003") || errorMessage.contains("Unknown Channel")
+                                    || errorMessage.contains("UNKNOWN_CHANNEL") || errorMessage.contains("404"))) {
                         LOGGER.warn("Channel {} was deleted on Fluxer, removing from the database.", channelId);
                         return dbManager.removeTemporaryChannel(channelId);
                     }
@@ -235,7 +236,8 @@ public class TemporaryChannelTreeService {
 
         } catch (Exception ex) {
             String message = ex.getMessage();
-            if (message != null && (message.contains("10003") || message.contains("Unknown Channel"))) {
+            if (message != null && (message.contains("10003") || message.contains("Unknown Channel")
+                    || message.contains("UNKNOWN_CHANNEL") || message.contains("404"))) {
                 LOGGER.warn("Channel {} was deleted on Fluxer, removing from the database.", channelId);
                 dbManager.removeTemporaryChannel(channelId).join();
                 return;
