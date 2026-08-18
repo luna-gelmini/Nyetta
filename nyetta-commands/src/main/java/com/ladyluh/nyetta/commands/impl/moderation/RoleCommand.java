@@ -14,17 +14,17 @@ public class RoleCommand implements Command {
 
     @Override
     public List<String> getAliases() {
-        return List.of("cargo");
+        return List.of();
     }
 
     @Override
     public String getDescription() {
-        return "Adiciona ou remove um cargo de um membro.";
+        return "Add or remove a member's role.";
     }
 
     @Override
     public String getUsage() {
-        return "role <add|remove> <usuário> <cargo>";
+        return "role <add|remove> <user> <role>";
     }
 
     @Override
@@ -40,21 +40,21 @@ public class RoleCommand implements Command {
     @Override
     public CompletableFuture<Void> execute(CommandContext ctx) {
         if (ctx.getArgs().size() < 3) {
-            return ctx.reply("Uso: `" + getUsage() + "`");
+            return ctx.reply("Usage: `" + getUsage() + "`");
         }
         String action = ctx.getArgs().getFirst().toLowerCase();
         String userId = stripMention(ctx.getArgs().get(1));
         String roleId = stripMention(ctx.getArgs().get(2));
         if (userId.isEmpty() || roleId.isEmpty()) {
-            return ctx.reply("Uso: `" + getUsage() + "`");
+            return ctx.reply("Usage: `" + getUsage() + "`");
         }
 
         return switch (action) {
-            case "add", "dar" -> ctx.getClient().addRoleToMember(ctx.getGuildId(), userId, roleId)
-                    .thenCompose(v -> ctx.reply("Cargo <@&" + roleId + "> adicionado a <@" + userId + ">."));
-            case "remove", "tirar", "rem" -> ctx.getClient().removeRoleFromMember(ctx.getGuildId(), userId, roleId)
-                    .thenCompose(v -> ctx.reply("Cargo <@&" + roleId + "> removido de <@" + userId + ">."));
-            default -> ctx.reply("Uso: `" + getUsage() + "`");
+            case "add" -> ctx.getClient().addRoleToMember(ctx.getGuildId(), userId, roleId)
+                    .thenCompose(v -> ctx.reply("Added <@&" + roleId + "> to <@" + userId + ">."));
+            case "remove", "rem" -> ctx.getClient().removeRoleFromMember(ctx.getGuildId(), userId, roleId)
+                    .thenCompose(v -> ctx.reply("Removed <@&" + roleId + "> from <@" + userId + ">."));
+            default -> ctx.reply("Usage: `" + getUsage() + "`");
         };
     }
 

@@ -65,7 +65,7 @@ public class LogEventListener implements EventListener {
                     java.io.File imageFile = welcomeImageService.generateWelcomeImage(event.getMember().getUser(), null);
                     if (imageFile != null) {
                          okhttp3.MultipartBody.Builder builder = new okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM);
-                         String welcomeMsg = String.format("Bem-vindo(a) ao servidor, <@%s>!", event.getMember().getUser().getId());
+                         String welcomeMsg = String.format("Welcome to the server, <@%s>!", event.getMember().getUser().getId());
                          builder.addFormDataPart("payload_json", "{\"content\": \"" + welcomeMsg + "\"}");
                          builder.addFormDataPart("files[0]", imageFile.getName(),
                                  okhttp3.RequestBody.create(imageFile, okhttp3.MediaType.parse("image/png")));
@@ -83,9 +83,9 @@ public class LogEventListener implements EventListener {
                 String userId = event.getMember().getUser().getId();
 
                 EmbedBuilder logEmbed = new EmbedBuilder()
-                        .setTitle("👋 Membro Entrou")
+                        .setTitle("👋 Member joined")
                         .setColor(Color.GREEN)
-                        .addField("Usuário", "<@" + userId + ">", true)
+                        .addField("User", "<@" + userId + ">", true)
                         .addField("ID", "`" + userId + "`", true)
                         .setTimestamp(OffsetDateTime.now());
 
@@ -120,27 +120,27 @@ public class LogEventListener implements EventListener {
                     }
 
                     EmbedBuilder logEmbed = new EmbedBuilder()
-                            .setTitle("📝 Mensagem Editada")
+                            .setTitle("📝 Message edited")
                             .setColor(Color.ORANGE)
-                            .addField("Canal", "<#" + updatedMessage.getChannelId() + "> (`" + updatedMessage.getChannelId() + "`)", true);
+                            .addField("Channel", "<#" + updatedMessage.getChannelId() + "> (`" + updatedMessage.getChannelId() + "`)", true);
 
                     if (author != null) {
-                        logEmbed.addField("Autor", author.getAsTag() + " (`" + author.getId() + "`)", true);
+                        logEmbed.addField("Author", author.getAsTag() + " (`" + author.getId() + "`)", true);
                     } else if (updatedMessage.getAuthor() != null && updatedMessage.getAuthor().getId() != null) {
-                        logEmbed.addField("Autor ID", "`" + updatedMessage.getAuthor().getId() + "`", true);
+                        logEmbed.addField("Author ID", "`" + updatedMessage.getAuthor().getId() + "`", true);
                     } else {
-                        logEmbed.addField("Autor", "Desconhecido", true);
+                        logEmbed.addField("Author", "Unknown", true);
                     }
 
-                    logEmbed.addField("ID da Mensagem", "`" + updatedMessage.getId() + "`", false)
-                            .addField("Novo Conteúdo", updatedMessage.getContentRaw() != null && !updatedMessage.getContentRaw().isEmpty() ? updatedMessage.getContentRaw() : "*Conteúdo não presente ou embed editado*", false)
+                    logEmbed.addField("Message ID", "`" + updatedMessage.getId() + "`", false)
+                            .addField("New content", updatedMessage.getContentRaw() != null && !updatedMessage.getContentRaw().isEmpty() ? updatedMessage.getContentRaw() : "*No content, or an embed was edited*", false)
                             .setTimestamp(OffsetDateTime.now());
 
                     String messageLink = ApiEnvironment.channelMessageUrl(
                             guildId,
                             updatedMessage.getChannelId(),
                             updatedMessage.getId());
-                    logEmbed.addField("Link", "[Pular para Mensagem](" + messageLink + ")", false);
+                    logEmbed.addField("Link", "[Jump to message](" + messageLink + ")", false);
 
                     client.sendMessage(logChannelId, new MessageBuilder().addEmbed(logEmbed).build())
                             .exceptionally(ex -> {
@@ -171,13 +171,13 @@ public class LogEventListener implements EventListener {
                     }
 
                     EmbedBuilder logEmbed = new EmbedBuilder()
-                            .setTitle("🗑️ Mensagem Deletada")
+                            .setTitle("🗑️ Message deleted")
                             .setColor(Color.RED)
-                            .addField("Canal", "<#" + event.getChannelId() + "> (`" + event.getChannelId() + "`)", false)
-                            .addField("ID da Mensagem", "`" + event.getMessageId() + "`", false)
+                            .addField("Channel", "<#" + event.getChannelId() + "> (`" + event.getChannelId() + "`)", false)
+                            .addField("Message ID", "`" + event.getMessageId() + "`", false)
                             .setTimestamp(OffsetDateTime.now());
 
-                    logEmbed.addField("Servidor ID", "`" + guildId + "`", true);
+                    logEmbed.addField("Server ID", "`" + guildId + "`", true);
 
                     client.sendMessage(logChannelId, new MessageBuilder().addEmbed(logEmbed).build())
                             .exceptionally(ex -> {
@@ -210,15 +210,15 @@ public class LogEventListener implements EventListener {
                         .setTimestamp(OffsetDateTime.now());
 
                 if (channelId != null) {
-                    logEmbed.setTitle("🔊 Atividade de Voz: Conectado")
+                    logEmbed.setTitle("🔊 Voice: joined")
                             .setColor(Color.GREEN)
-                            .addField("Usuário", "<@" + userId + ">", true)
-                            .addField("Canal", "<#" + channelId + "> (`" + channelId + "`)", true);
+                            .addField("User", "<@" + userId + ">", true)
+                            .addField("Channel", "<#" + channelId + "> (`" + channelId + "`)", true);
                 } else {
-                    logEmbed.setTitle("🔇 Atividade de Voz: Desconectado")
+                    logEmbed.setTitle("🔇 Voice: left")
                             .setColor(Color.RED)
-                            .addField("Usuário", "<@" + userId + ">", true)
-                            .addField("Canal", "*Desconectado de canal de voz*", true);
+                            .addField("User", "<@" + userId + ">", true)
+                            .addField("Channel", "*Left voice*", true);
                 }
 
                 client.sendMessage(logChannelId, new MessageBuilder().addEmbed(logEmbed).build())
@@ -240,9 +240,9 @@ public class LogEventListener implements EventListener {
                 String userId = event.getUser().getId();
 
                 EmbedBuilder logEmbed = new EmbedBuilder()
-                        .setTitle("👋 Membro Saiu")
+                        .setTitle("👋 Member left")
                         .setColor(Color.RED)
-                        .addField("Usuário", "<@" + userId + ">", true)
+                        .addField("User", "<@" + userId + ">", true)
                         .addField("ID", "`" + userId + "`", true)
                         .setTimestamp(OffsetDateTime.now());
 

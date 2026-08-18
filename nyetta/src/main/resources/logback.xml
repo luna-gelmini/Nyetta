@@ -1,13 +1,19 @@
 <configuration>
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
+
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] [ %-5level] %msg%n</pattern>
+            <pattern>%gray(%d{HH:mm:ss.SSS}) %highlight(%-5level) %cyan(%-22.22logger{0}) %msg%n</pattern>
         </encoder>
     </appender>
+
+    <logger name="okhttp3" level="WARN"/>
+    <logger name="okhttp3.internal" level="ERROR"/>
+    <logger name="flux.opus" level="WARN"/>
+    <logger name="flux.voice" level="INFO"/>
+    <logger name="flux.gateway.client.impl" level="INFO"/>
 
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
-
-    <logger name="okhttp3" level="INFO"/>
 </configuration>

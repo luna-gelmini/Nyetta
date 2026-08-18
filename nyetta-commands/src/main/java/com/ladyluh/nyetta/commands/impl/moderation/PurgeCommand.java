@@ -21,7 +21,7 @@ public class PurgeCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Deleta um número específico de mensagens.";
+        return "Delete a number of messages.";
     }
 
     @Override
@@ -42,27 +42,27 @@ public class PurgeCommand implements Command {
     @Override
     public CompletableFuture<Void> execute(CommandContext ctx) {
         if (ctx.getArgs().isEmpty() || ctx.getArgs().get(0).isEmpty()) {
-            return ctx.reply("Por favor, especifique o número de mensagens a deletar.");
+            return ctx.reply("Specify how many messages to delete.");
         }
         int amount;
         try {
             amount = Integer.parseInt(ctx.getArgs().get(0));
         } catch (NumberFormatException e) {
-            return ctx.reply("Número inválido.");
+            return ctx.reply("Invalid number.");
         }
 
         if (amount < 2 || amount > 100) {
-            return ctx.reply("Você só pode deletar entre 2 e 100 mensagens por vez.");
+            return ctx.reply("You can only delete between 2 and 100 messages at a time.");
         }
 
         return ctx.getClient().getMessages(ctx.getChannelId(), amount)
                 .thenCompose(messages -> {
                     List<String> messageIds = messages.stream().map(Message::getId).collect(Collectors.toList());
                     return ctx.getClient().bulkDeleteMessages(ctx.getChannelId(), messageIds)
-                            .thenCompose(v -> ctx.reply(messageIds.size() + " mensagens deletadas."));
+                            .thenCompose(v -> ctx.reply(messageIds.size() + " messages deleted."));
                 })
                 .exceptionally(throwable -> {
-                    ctx.reply("Falha ao buscar/deletar mensagens: " + throwable.getMessage());
+                    ctx.reply("Failed to fetch/delete messages: " + throwable.getMessage());
                     return null;
                 });
     }

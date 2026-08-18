@@ -10,12 +10,12 @@ import java.util.concurrent.CompletableFuture;
 
 public class EightBallCommand implements Command {
     private final String[] responses = {
-            "Com certeza.", "Definitivamente sim.", "Sem dúvida.", "Sim, definitivamente.",
-            "Pode confiar.", "Como eu vejo, sim.", "Muito provável.", "Perspectivas boas.",
-            "Sim.", "Sinais apontam que sim.", "Resposta nebulosa, tente novamente.", "Pergunte mais tarde.",
-            "Melhor não te dizer agora.", "Não dá pra prever agora.", "Concentre-se e pergunte de novo.",
-            "Não conte com isso.", "Minha resposta é não.", "Minhas fontes dizem não.", "Perspectivas não muito boas.",
-            "Muito duvidoso."
+            "It is certain.", "It is decidedly so.", "Without a doubt.", "Yes, definitely.",
+            "You may rely on it.", "As I see it, yes.", "Most likely.", "Outlook good.",
+            "Yes.", "Signs point to yes.", "Reply hazy, try again.", "Ask again later.",
+            "Better not tell you now.", "Cannot predict now.", "Concentrate and ask again.",
+            "Don't count on it.", "My reply is no.", "My sources say no.", "Outlook not so good.",
+            "Very doubtful."
     };
     private final Random random = new Random();
 
@@ -31,7 +31,7 @@ public class EightBallCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Pergunte à bola mágica 8.";
+        return "Ask the magic 8-ball.";
     }
 
     @Override

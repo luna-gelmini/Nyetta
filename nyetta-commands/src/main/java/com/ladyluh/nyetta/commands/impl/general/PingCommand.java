@@ -19,7 +19,7 @@ public class PingCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Confere se o bot está online.";
+        return "Check if the bot is online.";
     }
 
     @Override

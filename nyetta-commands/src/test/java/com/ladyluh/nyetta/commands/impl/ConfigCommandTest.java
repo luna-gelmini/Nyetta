@@ -76,7 +76,7 @@ public class ConfigCommandTest {
 
         ArgumentCaptor<flux.api.payload.send.MessageSendPayload> payloadCaptor = ArgumentCaptor.forClass(flux.api.payload.send.MessageSendPayload.class);
         verify(client).sendMessage(eq("channel-1"), payloadCaptor.capture());
-        assertEquals("Chave de configuração desconhecida: 'nope'. Use `!config show` ou `!config audit` para revisar as opções atuais.", payloadCaptor.getValue().getContent());
+        assertEquals("Unknown config key: 'nope'. Use `!config show` or `!config audit` to review the current options.", payloadCaptor.getValue().getContent());
     }
 
     @Test

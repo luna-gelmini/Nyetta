@@ -18,12 +18,12 @@ public class VoiceStateCacheManager {
 
     public VoiceStateCacheManager() {
         this.guildVoiceChannelMembers = new ConcurrentHashMap<>();
-        LOGGER.info("VoiceStateCacheManager: voice state cache initialized.");
+        LOGGER.debug("voice state cache initialized");
     }
 
     public void onGuildCreate(GuildCreateEvent event) {
         String guildId = event.getGuild().getId();
-        LOGGER.info("VoiceStateCacheManager: GuildCreateEvent for guild {}. Filling cache...", guildId);
+        LOGGER.debug("filling voice cache for guild {}", guildId);
 
         ConcurrentHashMap<String, ConcurrentSkipListSet<String>> guildChannelsMap =
                 guildVoiceChannelMembers.computeIfAbsent(guildId, k -> new ConcurrentHashMap<>());
@@ -38,7 +38,7 @@ public class VoiceStateCacheManager {
                 LOGGER.debug("Cache (init): user {} added to channel {}.", userId, channelId);
             }
         });
-        LOGGER.info("VoiceStateCacheManager: cache filled for guild {}. Tracked voice channels: {}", guildId, guildChannelsMap.size());
+        LOGGER.debug("voice cache ready for guild {} ({} channels)", guildId, guildChannelsMap.size());
     }
 
     public void onVoiceStateUpdate(VoiceStateUpdateEvent event) {

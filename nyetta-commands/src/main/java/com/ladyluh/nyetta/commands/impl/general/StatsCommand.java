@@ -32,7 +32,7 @@ public class StatsCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Mostra métricas do sistema e status do bot.";
+        return "Show system metrics and bot status.";
     }
 
     @Override
@@ -62,7 +62,7 @@ public class StatsCommand implements Command {
                 .setTitle("📊 System Metrics")
                 .setColor(new Color(114, 137, 218))
                 .addField("⏱️ Uptime", uptimeStr, true)
-                .addField("💾 Memória (Heap)", String.format("%dMB / %dMB", usedMemory, totalMemory), true)
+                .addField("💾 Memory (Heap)", String.format("%dMB / %dMB", usedMemory, totalMemory), true)
                 .addField("🏓 Ping", "N/A", true)
                 .addField("🤖 Java Version", System.getProperty("java.version"), true)
                 .addField("THREADS", String.valueOf(Thread.activeCount()), true)

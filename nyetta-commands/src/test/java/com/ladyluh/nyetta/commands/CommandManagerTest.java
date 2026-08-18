@@ -54,7 +54,7 @@ public class CommandManagerTest {
 
         commandManager.handleCommand("config", List.of("show"), event);
 
-        verify(client, never()).sendMessage(eq("channel-1"), eq("Este comando só pode ser usado em um servidor."));
+        verify(client, never()).sendMessage(eq("channel-1"), eq("This command can only be used in a server."));
         verify(client).getGuildMember("guild-1", "user-1");
         verify(client).sendMessage(eq("channel-1"), any(flux.api.payload.send.MessageSendPayload.class));
     }

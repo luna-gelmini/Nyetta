@@ -20,7 +20,7 @@ public class AvatarCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Mostra o avatar de um usuário.";
+        return "Show a user's avatar.";
     }
 
     @Override
@@ -40,7 +40,7 @@ public class AvatarCommand implements Command {
             return ctx.getClient().getUserById(userId)
                     .thenCompose(user -> {
                         if (user == null) {
-                            return ctx.reply("Usuário não encontrado.");
+                            return ctx.reply("User not found.");
                         }
                         return ctx.reply(user.getUsername() + "'s Avatar: " + user.getEffectiveAvatarUrl());
                     });

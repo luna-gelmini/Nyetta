@@ -20,7 +20,7 @@ public class KickCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Expulsa um usuário do servidor.";
+        return "Kick a user from the server.";
     }
 
     @Override
@@ -41,17 +41,17 @@ public class KickCommand implements Command {
     @Override
     public CompletableFuture<Void> execute(CommandContext ctx) {
         if (ctx.getArgs().isEmpty() || ctx.getArgs().get(0).isEmpty()) {
-            return ctx.reply("Uso: " + getUsage());
+            return ctx.reply("Usage: " + getUsage());
         }
         String userId = ctx.getArgs().get(0).replaceAll("[<@!>]", "");
         String reasonArg = ctx.getArgs().size() > 1 ? String.join(" ", ctx.getArgs().subList(1, ctx.getArgs().size()))
                 : null;
-        final String reason = reasonArg != null ? reasonArg : "Sem motivo fornecido";
+        final String reason = reasonArg != null ? reasonArg : "No reason provided";
 
         return ctx.getClient().kickMember(ctx.getGuildId(), userId, reason)
-                .thenCompose(v -> ctx.reply("Usuário <@" + userId + "> expulso. Motivo: " + reason))
+                .thenCompose(v -> ctx.reply("Kicked <@" + userId + ">. Reason: " + reason))
                 .exceptionally(t -> {
-                    ctx.reply("Falha ao expulsar usuário: " + t.getMessage());
+                    ctx.reply("Failed to kick user: " + t.getMessage());
                     return null;
                 });
     }

@@ -41,7 +41,7 @@ public class ConfigCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Define configurações para este servidor.";
+        return "Set configuration for this server.";
     }
 
     @Override
@@ -57,18 +57,18 @@ public class ConfigCommand implements Command {
     public CompletableFuture<Void> execute(CommandContext ctx) {
         String guildId = ctx.getGuildId();
         if (guildId == null) {
-            return ctx.reply("Este comando só pode ser usado em um servidor.");
+            return ctx.reply("This command can only be used in a server.");
         }
 
         return ctx.getClient().getGuildMember(guildId, ctx.getAuthor().getId())
                 .thenCompose(member -> {
                     if (member == null) {
-                        return ctx.reply("Não consegui verificar suas permissões neste servidor.");
+                        return ctx.reply("Could not check your permissions in this server.");
                     }
                     return member.hasPermission(Permission.ADMINISTRATOR)
                             .thenCompose(hasAdminPerm -> {
                                 if (!hasAdminPerm) {
-                                    return ctx.reply("Você não tem permissão para usar este comando. (Requer permissão de ADMINISTRADOR)");
+                                    return ctx.reply("You don't have permission to use this command. (Requires Administrator)");
                                 }
 
                                 if (ctx.getArgs().isEmpty()) {
@@ -88,26 +88,28 @@ public class ConfigCommand implements Command {
     }
 
     private CompletableFuture<Void> showHelp(CommandContext ctx) {
+        String prefix = ctx.getConfig().getCommandPrefix();
         EmbedBuilder embed = new EmbedBuilder()
-                .setTitle("⚙️ Configuração do Servidor")
-                .setDescription("Use `!config set <chave> <valor>` para alterar as configurações ou `!config audit` para revisar o estado atual.")
+                .setTitle("⚙️ Server config")
+                .setDescription("Use `" + prefix + "config set <key> <value>` to change settings or `" + prefix
+                        + "config audit` to review the current state.")
                 .setColor(new Color(0x2F3136))
-                .addField("Canais",
+                .addField("Channels",
                         """
-                        `log_channel` - Canal de logs
-                        `welcome_channel` - Canal de boas-vindas
-                        `temp_hub_channel` - Canal de voz para criar salas
+                        `log_channel` - Log channel
+                        `welcome_channel` - Welcome channel
+                        `temp_hub_channel` - Voice hub that creates rooms
                         """, true)
-                .addField("Cargos & Categorias",
+                .addField("Roles & categories",
                         """
-                        `auto_assign_role` - Cargo inicial
-                        `temp_channel_category` - Categoria das salas
+                        `auto_assign_role` - Join role
+                        `temp_channel_category` - Temporary room category
                         """, true)
-                .addField("Salas Temporárias",
+                .addField("Temporary rooms",
                         """
-                        `temp_channel_name_prefix` - Prefixo do nome
-                        `default_temp_channel_user_limit` - Limite de usuários
-                        `default_temp_channel_lock` - Trancar ao criar?
+                        `temp_channel_name_prefix` - Name prefix
+                        `default_temp_channel_user_limit` - User limit
+                        `default_temp_channel_lock` - Lock on create?
                         """, false)
                 .setFooter("Nyetta Config", ctx.getClient().getSelfUser().getEffectiveAvatarUrl())
                 .setTimestamp(OffsetDateTime.now());
@@ -133,8 +135,8 @@ public class ConfigCommand implements Command {
                     EmbedBuilder embed = new EmbedBuilder()
                             .setTitle("🔎 Config Audit")
                             .setColor(missing.isEmpty() ? new Color(0x4CAF50) : new Color(0xFF9800))
-                            .addField("OK", ok.isEmpty() ? "*Nada validado*" : String.join("\n", ok), false)
-                            .addField("Faltando/Ajustar", missing.isEmpty() ? "*Nada*" : String.join("\n", missing), false)
+                            .addField("OK", ok.isEmpty() ? "*Nothing checked*" : String.join("\n", ok), false)
+                            .addField("Missing/adjust", missing.isEmpty() ? "*None*" : String.join("\n", missing), false)
                             .setTimestamp(OffsetDateTime.now());
 
                     return ctx.getClient().sendMessage(ctx.getChannelId(), new MessageBuilder().addEmbed(embed).build()).thenApply(v -> null);
@@ -156,9 +158,9 @@ public class ConfigCommand implements Command {
                     GuildConfig guildConfig = configOpt.orElse(new GuildConfig(guildId));
 
                     EmbedBuilder embed = new EmbedBuilder()
-                            .setTitle("⚙️ Configurações Atuais")
+                            .setTitle("⚙️ Current settings")
                             .setColor(new Color(0x2F3136))
-                            .setFooter("Solicitado por " + ctx.getAuthor().getAsTag(), ctx.getAuthor().getEffectiveAvatarUrl())
+                            .setFooter("Requested by " + ctx.getAuthor().getAsTag(), ctx.getAuthor().getEffectiveAvatarUrl())
                             .setTimestamp(OffsetDateTime.now());
 
                     for (Field field : GuildConfig.class.getDeclaredFields()) {
@@ -169,9 +171,9 @@ public class ConfigCommand implements Command {
                             Object value = field.get(guildConfig);
                             String displayKey = field.getName().replaceAll("([A-Z])", "_$1").toLowerCase();
 
-                            String displayValue = value == null ? "*Não definido*" : "`" + value.toString() + "`";
+                            String displayValue = value == null ? "*Not set*" : "`" + value.toString() + "`";
                             if (value instanceof Boolean) {
-                                displayValue = ((Boolean) value) ? "✅ Ativado" : "❌ Desativado";
+                                displayValue = ((Boolean) value) ? "✅ Enabled" : "❌ Disabled";
                             }
 
                             embed.addField(displayKey, displayValue, true);
@@ -185,12 +187,12 @@ public class ConfigCommand implements Command {
     }
 
     private String configFormat(Object value) {
-        return value == null ? "Não definido" : String.valueOf(value);
+        return value == null ? "Not set" : String.valueOf(value);
     }
 
     private CompletableFuture<Void> setConfig(CommandContext ctx, List<String> args) {
         if (args.size() < 2) {
-            return ctx.reply("Uso: `!config set <key> <value>`");
+            return ctx.reply("Usage: `" + ctx.getConfig().getCommandPrefix() + "config set <key> <value>`");
         }
 
         String key = args.getFirst().toLowerCase();
@@ -211,8 +213,7 @@ public class ConfigCommand implements Command {
                     matcher.appendTail(sb);
                     String fieldName = sb.toString();
 
-                    LOGGER.info("generated fieldName: {}", fieldName);
-                    LOGGER.info("original key: {}", key);
+                    LOGGER.debug("config key '{}' → field '{}'", key, fieldName);
 
                     String finalReplyMessage;
 
@@ -228,25 +229,27 @@ public class ConfigCommand implements Command {
 
                         targetField.set(guildConfig, valueToSet);
 
-                        finalReplyMessage = "Configuração `" + key + "` definida para: `" + configFormat(valueToSet) + "`";
+                        finalReplyMessage = "Set `" + key + "` to `" + configFormat(valueToSet) + "`";
 
                     } catch (NoSuchFieldException e) {
                         LOGGER.warn("Config key '{}' is not a field on GuildConfig.", key, e);
-                        return ctx.reply("Chave de configuração desconhecida: '" + key + "'. Use `!config show` ou `!config audit` para revisar as opções atuais.");
+                        String prefix = ctx.getConfig().getCommandPrefix();
+                        return ctx.reply("Unknown config key: '" + key + "'. Use `" + prefix
+                                + "config show` or `" + prefix + "config audit` to review the current options.");
                     } catch (NumberFormatException e) {
-                        return ctx.reply("Valor inválido para '" + key + "'. Esperado um número.");
+                        return ctx.reply("Invalid value for '" + key + "'. Expected a number.");
                     } catch (IllegalArgumentException e) {
-                        return ctx.reply("Valor inválido para '" + key + "'. " + e.getMessage());
+                        return ctx.reply("Invalid value for '" + key + "'. " + e.getMessage());
                     } catch (IllegalAccessException e) {
                         LOGGER.error("Reflection field access error: {}", key, e);
-                        return ctx.reply("Erro interno ao tentar configurar. Verifique os logs.");
+                        return ctx.reply("Internal error while setting config. Check the logs.");
                     }
 
                     return dbManager.updateGuildConfig(guildConfig)
                             .thenCompose(v -> ctx.reply(finalReplyMessage))
                             .exceptionally(ex -> {
                                 LOGGER.error("Failed to save config {}:{} for guild {}:", key, rawValue, guildId, ex);
-                                ctx.reply("Erro ao salvar a configuração. Verifique os logs.");
+                                ctx.reply("Failed to save config. Check the logs.");
 
                                 return null;
                             });
@@ -273,17 +276,17 @@ public class ConfigCommand implements Command {
         } else if (fieldType == Integer.class || fieldType == int.class) {
             int intValue = Integer.parseInt(processedValue);
             if (key.equals("default_temp_channel_user_limit") && (intValue < 0 || intValue > 99)) {
-                throw new IllegalArgumentException("Limite de usuários deve ser entre 0 e 99.");
+                throw new IllegalArgumentException("User limit must be between 0 and 99.");
             }
             valueToSet = intValue;
         } else if (fieldType == Boolean.class || fieldType == boolean.class) {
 
             if (!processedValue.equalsIgnoreCase("true") && !processedValue.equalsIgnoreCase("false")) {
-                throw new IllegalArgumentException("Valor deve ser 'true' ou 'false'.");
+                throw new IllegalArgumentException("Value must be 'true' or 'false'.");
             }
             valueToSet = Boolean.parseBoolean(processedValue);
         } else {
-            throw new IllegalArgumentException("Tipo de valor para '" + key + "' não suportado.");
+            throw new IllegalArgumentException("Unsupported value type for '" + key + "'.");
         }
         return valueToSet;
     }

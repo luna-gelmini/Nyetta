@@ -144,12 +144,12 @@ public class MessageEventListener implements EventListener {
     private void sendLevelUpMessage(String channelId, User user, int newLevel) {
         EmbedBuilder embed = new EmbedBuilder()
                 .setTitle("🎉 LEVEL UP!")
-                .setDescription("Parabéns, <@" + user.getId() + ">! Você alcançou o **Nível " + newLevel + "**!")
+                .setDescription("Congrats, <@" + user.getId() + ">! You reached **level " + newLevel + "**!")
                 .setColor(new Color(0xFFD700))
                 .setThumbnail(user.getEffectiveAvatarUrl())
-                .addField("XP Total", String.valueOf(UserXP.calculateXpForLevel(newLevel)), true)
-                .addField("Próximo Nível", UserXP.calculateXpForLevel(newLevel + 1) + " XP", true)
-                .setFooter("Continue conversando para ganhar mais XP!", null)
+                .addField("Total XP", String.valueOf(UserXP.calculateXpForLevel(newLevel)), true)
+                .addField("Next level", UserXP.calculateXpForLevel(newLevel + 1) + " XP", true)
+                .setFooter("Keep chatting to earn more XP!", null)
                 .setTimestamp(OffsetDateTime.now());
 
         client.sendMessage(channelId, new MessageBuilder().addEmbed(embed).build())

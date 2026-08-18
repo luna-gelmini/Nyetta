@@ -76,14 +76,14 @@ class ConfigManagerTest {
                 # comment
                 BOT_TOKEN="secret-token"
                 export COMMAND_PREFIX=?
-                TEMP_CHANNEL_NAME_PREFIX="Sala de "
+                TEMP_CHANNEL_NAME_PREFIX="%username%'s room"
                 """);
 
         Map<String, String> values = EnvFile.load(env);
 
         assertEquals("secret-token", values.get("BOT_TOKEN"));
         assertEquals("?", values.get("COMMAND_PREFIX"));
-        assertEquals("Sala de ", values.get("TEMP_CHANNEL_NAME_PREFIX"));
+        assertEquals("%username%'s room", values.get("TEMP_CHANNEL_NAME_PREFIX"));
     }
 
     @Test

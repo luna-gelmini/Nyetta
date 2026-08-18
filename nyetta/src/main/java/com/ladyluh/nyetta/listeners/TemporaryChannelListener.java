@@ -31,6 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class TemporaryChannelListener implements EventListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(TemporaryChannelListener.class);
 
+    private final ConfigManager config;
     private final FluxClient client;
     private final DatabaseManager dbManager;
     private final VoiceStateCacheManager voiceStateCacheManager;
@@ -42,6 +43,7 @@ public class TemporaryChannelListener implements EventListener {
 
     public TemporaryChannelListener(ConfigManager config, FluxClient client, DatabaseManager dbManager,
             VoiceStateCacheManager voiceStateCacheManager, TemporaryChannelTreeService treeService) {
+        this.config = config;
         this.client = client;
         this.dbManager = dbManager;
         this.voiceStateCacheManager = voiceStateCacheManager;
@@ -55,6 +57,32 @@ public class TemporaryChannelListener implements EventListener {
         } else if (event instanceof VoiceStateUpdateEvent vsEvent) {
             handleVoiceStateUpdate(vsEvent);
         }
+    }
+
+    private GuildConfig applyEnvDefaults(GuildConfig guildConfig) {
+        if (isBlank(guildConfig.tempHubChannelId)) {
+            guildConfig.tempHubChannelId = config.getHubChannelId();
+        }
+        if (isBlank(guildConfig.tempChannelCategoryId)) {
+            guildConfig.tempChannelCategoryId = config.getTempChannelCategoryId();
+        }
+        if (isBlank(guildConfig.tempChannelNamePrefix)) {
+            String prefix = config.getTempChannelNamePrefix();
+            if (!isBlank(prefix)) {
+                guildConfig.tempChannelNamePrefix = prefix;
+            }
+        }
+        if (guildConfig.defaultTempChannelUserLimit == null) {
+            guildConfig.defaultTempChannelUserLimit = config.getTempChannelUserLimit();
+        }
+        if (guildConfig.defaultTempChannelLock == null) {
+            guildConfig.defaultTempChannelLock = config.getTempChannelDefaultLock();
+        }
+        return guildConfig;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private ReentrantLock getChannelLock(String channelId) {
@@ -95,9 +123,10 @@ public class TemporaryChannelListener implements EventListener {
         if (newChannelId != null) {
             dbManager.getGuildConfig(guildId)
                     .thenAccept(configOpt -> {
-                        String hubId = configOpt.map(cfg -> cfg.tempHubChannelId).orElse(null);
-                        if (hubId != null && hubId.equals(newChannelId)) {
-                            handleHubJoin(event, guildId, userId, configOpt.orElse(new GuildConfig(guildId)));
+                        GuildConfig guildConfig = applyEnvDefaults(configOpt.orElse(new GuildConfig(guildId)));
+                        String hubId = guildConfig.tempHubChannelId;
+                        if (hubId != null && !hubId.isBlank() && hubId.equals(newChannelId)) {
+                            handleHubJoin(event, guildId, userId, guildConfig);
                         }
                     })
                     .exceptionally(ex -> {
@@ -168,8 +197,13 @@ public class TemporaryChannelListener implements EventListener {
                                 ? prefs.defaultLocked
                                 : guildConfig.defaultTempChannelLock;
 
-                        String baseChannelName = (finalNameTemplate != null ? finalNameTemplate : "Sala de %username%")
-                                .replace("%username%", member.getEffectiveName());
+                        String nameTemplate = finalNameTemplate != null ? finalNameTemplate : "";
+                        if (nameTemplate.isBlank()) {
+                            nameTemplate = "%username%'s room";
+                        } else if (!nameTemplate.contains("%username%")) {
+                            nameTemplate = nameTemplate.trim() + " %username%";
+                        }
+                        String baseChannelName = nameTemplate.replace("%username%", member.getEffectiveName());
                         String channelName = treeService.applyTreePrefix(baseChannelName, true);
                         if (channelName.length() > 100) {
                             channelName = channelName.substring(0, 100);
@@ -179,7 +213,7 @@ public class TemporaryChannelListener implements EventListener {
 
                         CreateGuildChannelPayload payload = new CreateGuildChannelPayload(channelName,
                                 ChannelType.GUILD_VOICE);
-                        if (guildConfig.tempChannelCategoryId != null && !guildConfig.tempChannelCategoryId.isEmpty()) {
+                        if (!isBlank(guildConfig.tempChannelCategoryId)) {
                             payload.setParentId(guildConfig.tempChannelCategoryId);
                         }
                         if (finalUserLimit != null && finalUserLimit != 0) {
@@ -336,7 +370,7 @@ public class TemporaryChannelListener implements EventListener {
                                                 && !prefs.preferredName.isEmpty()
                                                         ? prefs.preferredName
                                                         : guildConfig.tempChannelNamePrefix;
-                                        String baseName = (nameTemplate != null ? nameTemplate : "Sala de %username%")
+                                        String baseName = (nameTemplate != null ? nameTemplate : "%username%'s room")
                                                 .replace("%username%", newOwnerMember.getEffectiveName());
 
                                         return treeService.isLastChannel(guildId, channelId)

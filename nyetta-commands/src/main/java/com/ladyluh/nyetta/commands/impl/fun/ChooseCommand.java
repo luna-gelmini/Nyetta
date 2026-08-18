@@ -18,17 +18,17 @@ public class ChooseCommand implements Command {
 
     @Override
     public List<String> getAliases() {
-        return List.of("escolher", "pick");
+        return List.of("pick");
     }
 
     @Override
     public String getDescription() {
-        return "Escolhe uma opção aleatória.";
+        return "Pick a random option.";
     }
 
     @Override
     public String getUsage() {
-        return "choose <opção 1> | <opção 2> [| ...]";
+        return "choose <option 1> | <option 2> [| ...]";
     }
 
     @Override
@@ -43,9 +43,9 @@ public class ChooseCommand implements Command {
                 .filter(part -> !part.isEmpty())
                 .collect(Collectors.toCollection(ArrayList::new));
         if (options.size() < 2) {
-            return ctx.reply("Uso: `" + getUsage() + "`");
+            return ctx.reply("Usage: `" + getUsage() + "`");
         }
         String pick = options.get(ThreadLocalRandom.current().nextInt(options.size()));
-        return ctx.reply("Eu escolho: **" + pick + "**");
+        return ctx.reply("I pick: **" + pick + "**");
     }
 }

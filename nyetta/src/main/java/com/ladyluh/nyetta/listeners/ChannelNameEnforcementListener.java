@@ -73,7 +73,7 @@ public class ChannelNameEnforcementListener implements EventListener {
                                                                 ? prefs.preferredName
                                                                 : config.tempChannelNamePrefix;
                                                 String baseName = (nameTemplate != null ? nameTemplate
-                                                        : "Sala de %username%")
+                                                        : "%username%'s room")
                                                         .replace("%username%", member.getEffectiveName());
 
                                                 treeService.isLastChannel(guildId, channelId)

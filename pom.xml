@@ -24,15 +24,15 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <okhttp.version>4.12.0</okhttp.version>
         <jackson.version>2.15.2</jackson.version>
-        <flux.version>1.0.0</flux.version>
+        <fluxer4j.version>1.0.0</fluxer4j.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>app.flux</groupId>
-                <artifactId>flux</artifactId>
-                <version>${flux.version}</version>
+                <groupId>app.fluxer4j</groupId>
+                <artifactId>fluxer4j</artifactId>
+                <version>${fluxer4j.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.squareup.okhttp3</groupId>

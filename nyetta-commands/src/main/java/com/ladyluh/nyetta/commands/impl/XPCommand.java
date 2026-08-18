@@ -12,7 +12,6 @@ import com.ladyluh.nyetta.services.ScoreboardImageService;
 import java.awt.*;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 public class XPCommand implements Command {
@@ -36,12 +35,12 @@ public class XPCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Mostra seu status de XP ou o ranking do servidor.";
+        return "Show your XP status or the server ranking.";
     }
 
     @Override
     public String getUsage() {
-        return "xp [@membro] / xp top";
+        return "xp [@user] / xp top";
     }
 
     @Override
@@ -51,41 +50,44 @@ public class XPCommand implements Command {
 
     @Override
     public CompletableFuture<Void> execute(CommandContext ctx) {
-        if (Objects.equals(ctx.getArgs().getFirst(), "")) {
+        if (ctx.getArgs().isEmpty()) {
             return handleXPStatus(ctx, ctx.getAuthor());
-        } else if (ctx.getArgs().getFirst().equalsIgnoreCase("top")) {
+        }
+        String first = ctx.getArgs().getFirst();
+        if (first.equalsIgnoreCase("top")) {
             return handleXPLeaderboard(ctx);
-        } else if (ctx.getArgs().getFirst().matches("<@!?[0-9]+>")) {
-            String mentionedUserId = ctx.getArgs().getFirst().replaceAll("[<@!>]", "");
+        }
+        if (first.matches("<@!?[0-9]+>")) {
+            String mentionedUserId = first.replaceAll("[<@!>]", "");
             return ctx.getClient().getUserById(mentionedUserId)
                     .thenCompose(user -> {
                         if (user == null) {
-                            return ctx.reply("Não consegui encontrar esse usuário.");
+                            return ctx.reply("Could not find that user.");
                         }
                         return handleXPStatus(ctx, user);
                     });
-        } else {
-            return ctx.reply("Uso: `!xp [@membro]` ou `!xp top`");
         }
+        String prefix = ctx.getConfig().getCommandPrefix();
+        return ctx.reply("Usage: `" + prefix + "xp [@user]` or `" + prefix + "xp top`");
     }
 
     private CompletableFuture<Void> handleXPStatus(CommandContext ctx, User targetUser) {
         String guildId = ctx.getGuildId();
         if (guildId == null)
-            return ctx.reply("Este comando requer estar em um servidor.");
+            return ctx.reply("This command can only be used in a server.");
 
         return dbManager.getUserXP(guildId, targetUser.getId()).thenCompose(userXP -> {
             int xpRemainingForNextLevel = UserXP.calculateXpForLevel(userXP.getLevel() + 1) - userXP.getXp();
-            String xpStatus = String.format("Nível **%d** (XP: %d/%d)", userXP.getLevel(), userXP.getXp(),
+            String xpStatus = String.format("Level **%d** (XP: %d/%d)", userXP.getLevel(), userXP.getXp(),
                     UserXP.calculateXpForLevel(userXP.getLevel() + 1));
 
             EmbedBuilder embed = new EmbedBuilder()
-                    .setTitle("📊 Status de XP de " + escapeMarkdown(
+                    .setTitle("📊 XP status for " + escapeMarkdown(
                             targetUser.getGlobalName() != null ? targetUser.getGlobalName() : targetUser.getUsername()))
                     .setDescription(xpStatus)
                     .setColor(Color.BLUE)
                     .setThumbnail(targetUser.getEffectiveAvatarUrl())
-                    .addField("XP Faltando para o Próximo Nível", xpRemainingForNextLevel + " XP", true)
+                    .addField("XP until next level", xpRemainingForNextLevel + " XP", true)
                     .setTimestamp(OffsetDateTime.now());
 
             return ctx.getClient().sendMessage(ctx.getChannelId(), new MessageBuilder().addEmbed(embed).build())
@@ -97,11 +99,11 @@ public class XPCommand implements Command {
     private CompletableFuture<Void> handleXPLeaderboard(CommandContext ctx) {
         String guildId = ctx.getGuildId();
         if (guildId == null)
-            return ctx.reply("Este comando requer estar em um servidor.");
+            return ctx.reply("This command can only be used in a server.");
 
         return dbManager.getTopXPUsers(guildId, 10).thenCompose(topUsers -> {
             if (topUsers.isEmpty()) {
-                return ctx.reply("Ninguém ganhou XP ainda neste servidor!");
+                return ctx.reply("Nobody has earned XP in this server yet!");
             }
 
             return scoreboardImageService

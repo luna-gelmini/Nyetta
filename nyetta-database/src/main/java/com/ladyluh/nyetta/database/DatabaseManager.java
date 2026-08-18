@@ -23,7 +23,7 @@ public class DatabaseManager {
         File dataDir = new File("data");
         if (!dataDir.exists()) {
             if (dataDir.mkdirs()) {
-                LOGGER.info("Created 'data' directory.");
+                LOGGER.debug("created data directory");
             } else {
                 LOGGER.error("Failed to create 'data' directory.");
             }
@@ -103,7 +103,7 @@ public class DatabaseManager {
                     "interaction_metadata", "user_relationships"}) {
                 stmt.execute("DROP TABLE IF EXISTS " + table);
             }
-            LOGGER.info("SQLite tables checked/created.");
+            LOGGER.info("sqlite ready");
         } catch (SQLException e) {
             LOGGER.error("Failed to initialize SQLite:", e);
         }
@@ -168,7 +168,7 @@ public class DatabaseManager {
                 }
 
                 pstmt.executeUpdate();
-                LOGGER.info("Guild {} config upserted in DB.", config.guildId);
+                LOGGER.debug("guild {} config saved", config.guildId);
             } catch (SQLException e) {
                 LOGGER.error("Failed to update GuildConfig for guild {}:", config.guildId, e);
                 throw new RuntimeException("DB Error updating guild config for guild " + config.guildId, e);
@@ -256,7 +256,7 @@ public class DatabaseManager {
                 pstmt.setString(3, ownerUserId);
                 pstmt.setLong(4, System.currentTimeMillis());
                 pstmt.executeUpdate();
-                LOGGER.info("Temporary channel {} added to DB.", channelId);
+                LOGGER.debug("temporary channel {} saved", channelId);
             } catch (SQLException e) {
                 LOGGER.error("Failed to add temporary channel {} to DB:", channelId, e);
                 throw new RuntimeException("DB Error adding temporary channel " + channelId, e);
@@ -321,7 +321,7 @@ public class DatabaseManager {
                 pstmt.setString(1, newOwnerId);
                 pstmt.setString(2, channelId);
                 pstmt.executeUpdate();
-                LOGGER.info("Temporary channel {} owner updated to {} in DB.", channelId, newOwnerId);
+                LOGGER.debug("temporary channel {} owner → {}", channelId, newOwnerId);
             } catch (SQLException e) {
                 LOGGER.error("Failed to update temporary channel {} owner in DB:", channelId, e);
                 throw new RuntimeException("DB Error updating temporary channel owner for " + channelId, e);
@@ -337,7 +337,7 @@ public class DatabaseManager {
                 pstmt.setString(1, channelId);
                 int affectedRows = pstmt.executeUpdate();
                 if (affectedRows > 0) {
-                    LOGGER.info("Temporary channel {} removed from DB.", channelId);
+                    LOGGER.debug("temporary channel {} removed", channelId);
                 }
             } catch (SQLException e) {
                 LOGGER.error("Failed to remove temporary channel {} from DB:", channelId, e);
@@ -424,7 +424,7 @@ public class DatabaseManager {
                 else
                     pstmt.setNull(6, Types.INTEGER);
                 pstmt.executeUpdate();
-                LOGGER.info("Channel preferences for user {} in guild {} upserted.", userId, guildId);
+                LOGGER.debug("channel prefs saved for {} in {}", userId, guildId);
             } catch (SQLException e) {
                 LOGGER.error("Failed to upsert UserChannelPreference for guild {} user {}:", guildId, userId,
                         e);
@@ -434,7 +434,7 @@ public class DatabaseManager {
     }
 
     public void shutdown() {
-        LOGGER.info("Shutting down the database executor...");
+        LOGGER.info("closing sqlite");
         dbExecutor.shutdown();
         try {
             if (!dbExecutor.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)) {

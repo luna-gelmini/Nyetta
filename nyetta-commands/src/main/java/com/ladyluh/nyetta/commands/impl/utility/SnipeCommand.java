@@ -29,7 +29,7 @@ public class SnipeCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Mostra a última mensagem apagada neste canal.";
+        return "Show the last deleted message in this channel.";
     }
 
     @Override
@@ -46,33 +46,33 @@ public class SnipeCommand implements Command {
     public CompletableFuture<Void> execute(CommandContext ctx) {
         return snipeCache.lastDeleted(ctx.getChannelId())
                 .map(sniped -> {
-                    String content = sniped.content().isBlank() ? "*sem texto*" : sniped.content();
+                    String content = sniped.content().isBlank() ? "*no text*" : sniped.content();
                     if (content.length() > 1000) {
                         content = content.substring(0, 997) + "...";
                     }
                     EmbedBuilder embed = new EmbedBuilder()
-                            .setTitle("Mensagem apagada")
+                            .setTitle("Deleted message")
                             .setColor(new Color(0xED4245))
                             .setDescription(content)
-                            .addField("Autor", sniped.authorTag() + " (`" + sniped.authorId() + "`)", false)
+                            .addField("Author", sniped.authorTag() + " (`" + sniped.authorId() + "`)", false)
                             .setFooter(ago(sniped.deletedAt()), null);
                     return ctx.getClient()
                             .sendMessage(ctx.getChannelId(), new MessageBuilder().addEmbed(embed).build())
                             .thenAccept(m -> {
                             });
                 })
-                .orElseGet(() -> ctx.reply("Nenhuma mensagem apagada recentemente neste canal."));
+                .orElseGet(() -> ctx.reply("No recently deleted message in this channel."));
     }
 
     private static String ago(long deletedAt) {
         long seconds = Math.max(0, (System.currentTimeMillis() - deletedAt) / 1000);
         if (seconds < 60) {
-            return "há " + seconds + "s";
+            return seconds + "s ago";
         }
         long minutes = seconds / 60;
         if (minutes < 60) {
-            return "há " + minutes + "min";
+            return minutes + "min ago";
         }
-        return "há " + (minutes / 60) + "h";
+        return (minutes / 60) + "h ago";
     }
 }

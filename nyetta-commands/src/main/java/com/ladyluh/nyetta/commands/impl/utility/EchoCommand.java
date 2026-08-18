@@ -14,17 +14,17 @@ public class EchoCommand implements Command {
 
     @Override
     public List<String> getAliases() {
-        return List.of("say", "falar");
+        return List.of("say");
     }
 
     @Override
     public String getDescription() {
-        return "Envia uma mensagem como o bot.";
+        return "Send a message as the bot.";
     }
 
     @Override
     public String getUsage() {
-        return "echo <texto>";
+        return "echo <text>";
     }
 
     @Override
@@ -40,11 +40,11 @@ public class EchoCommand implements Command {
     @Override
     public CompletableFuture<Void> execute(CommandContext ctx) {
         if (ctx.getArgs().isEmpty()) {
-            return ctx.reply("Uso: `" + getUsage() + "`");
+            return ctx.reply("Usage: `" + getUsage() + "`");
         }
         String text = String.join(" ", ctx.getArgs()).trim();
         if (text.isEmpty()) {
-            return ctx.reply("Uso: `" + getUsage() + "`");
+            return ctx.reply("Usage: `" + getUsage() + "`");
         }
         return ctx.getClient().sendMessage(ctx.getChannelId(), text).thenAccept(m -> {
         });

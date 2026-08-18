@@ -30,7 +30,7 @@ public class XPTopCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Mostra o ranking de XP do servidor.";
+        return "Show the server XP ranking.";
     }
 
     @Override
@@ -47,11 +47,11 @@ public class XPTopCommand implements Command {
     public CompletableFuture<Void> execute(CommandContext ctx) {
         String guildId = ctx.getGuildId();
         if (guildId == null)
-            return ctx.reply("Este comando requer estar em um servidor.");
+            return ctx.reply("This command can only be used in a server.");
 
         return dbManager.getTopXPUsers(guildId, 10).thenCompose(topUsers -> {
             if (topUsers.isEmpty()) {
-                return ctx.reply("Ninguém ganhou XP ainda neste servidor!");
+                return ctx.reply("Nobody has earned XP in this server yet!");
             }
 
             return scoreboardImageService

@@ -14,12 +14,12 @@ public class UnbanCommand implements Command {
 
     @Override
     public List<String> getAliases() {
-        return List.of("desbanir");
+        return List.of();
     }
 
     @Override
     public String getDescription() {
-        return "Remove o banimento de um usuário.";
+        return "Unban a user.";
     }
 
     @Override
@@ -40,13 +40,13 @@ public class UnbanCommand implements Command {
     @Override
     public CompletableFuture<Void> execute(CommandContext ctx) {
         if (ctx.getArgs().isEmpty()) {
-            return ctx.reply("Uso: `" + getUsage() + "`");
+            return ctx.reply("Usage: `" + getUsage() + "`");
         }
         String userId = ctx.getArgs().getFirst().replaceAll("[<@!>]", "");
         if (userId.isBlank()) {
-            return ctx.reply("Uso: `" + getUsage() + "`");
+            return ctx.reply("Usage: `" + getUsage() + "`");
         }
         return ctx.getClient().rest().guilds.unbanGuildMember(ctx.getGuildId(), userId)
-                .thenCompose(ignored -> ctx.reply("Usuário `" + userId + "` desbanido."));
+                .thenCompose(ignored -> ctx.reply("Unbanned `" + userId + "`."));
     }
 }

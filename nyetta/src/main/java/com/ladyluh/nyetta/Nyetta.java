@@ -67,7 +67,7 @@ public class Nyetta {
             Nyetta bot = new Nyetta();
             bot.start();
         } catch (Exception e) {
-            LOGGER.error("Fatal error initializing Nyetta:", e);
+            LOGGER.error("failed to initialize", e);
         }
     }
 
@@ -92,20 +92,26 @@ public class Nyetta {
                 GatewayIntent.GUILD_MEMBERS,
                 GatewayIntent.GUILD_VOICE_STATES);
 
-        LOGGER.info("Starting Nyetta...");
+        String guildId = config.getGuildId();
+        LOGGER.info("Nyetta 0.1.0 · Fluxer4J");
+        LOGGER.info("prefix {} · guild {} · hub {} · category {}",
+                config.getCommandPrefix(),
+                blankToDash(guildId),
+                blankToDash(config.getHubChannelId()),
+                blankToDash(config.getTempChannelCategoryId()));
         fluxClient.login(config.getBotToken(), intents)
                 .thenRun(() -> {
-                    LOGGER.info("Nyetta connected to the Gateway and READY!");
+                    LOGGER.info("gateway connected");
                     startStatusRotation();
                     startPeriodicTreeVerification();
                 })
                 .exceptionally(throwable -> {
-                    LOGGER.error("Failed to start Nyetta:", throwable);
+                    LOGGER.error("failed to start", throwable);
                     return null;
                 });
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            LOGGER.info("Shutting down Nyetta...");
+            LOGGER.info("shutting down");
             if (statusRotator != null && !statusRotator.isShutdown()) {
                 statusRotator.shutdownNow();
             }
@@ -113,7 +119,7 @@ public class Nyetta {
 
             fluxClient.shutdown();
             databaseManager.shutdown();
-            LOGGER.info("Nyetta shut down.");
+            LOGGER.info("bye");
         }));
     }
 
@@ -143,5 +149,9 @@ public class Nyetta {
             return;
         }
         treeService.startPeriodicVerification(guildId);
+    }
+
+    private static String blankToDash(String value) {
+        return value == null || value.isBlank() ? "—" : value;
     }
 }

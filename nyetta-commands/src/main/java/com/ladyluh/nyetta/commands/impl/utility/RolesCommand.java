@@ -16,12 +16,12 @@ public class RolesCommand implements Command {
 
     @Override
     public List<String> getAliases() {
-        return List.of("cargos");
+        return List.of();
     }
 
     @Override
     public String getDescription() {
-        return "Lista os cargos do servidor.";
+        return "List server roles.";
     }
 
     @Override
@@ -39,7 +39,7 @@ public class RolesCommand implements Command {
         return ctx.getClient().getGuildRoles(ctx.getGuildId())
                 .thenCompose(roles -> {
                     if (roles == null || roles.isEmpty()) {
-                        return ctx.reply("Este servidor não tem cargos listáveis.");
+                        return ctx.reply("This server has no listable roles.");
                     }
                     String list = roles.stream()
                             .sorted(Comparator.reverseOrder())
@@ -48,7 +48,7 @@ public class RolesCommand implements Command {
                     if (list.length() > 1800) {
                         list = list.substring(0, 1797) + "...";
                     }
-                    return ctx.reply("**Cargos** (" + roles.size() + ")\n" + list);
+                    return ctx.reply("**Roles** (" + roles.size() + ")\n" + list);
                 });
     }
 }

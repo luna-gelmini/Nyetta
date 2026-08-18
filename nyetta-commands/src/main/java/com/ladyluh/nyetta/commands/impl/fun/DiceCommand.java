@@ -23,7 +23,7 @@ public class DiceCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Rola um dado de 6 lados.";
+        return "Roll a 6-sided die.";
     }
 
     @Override

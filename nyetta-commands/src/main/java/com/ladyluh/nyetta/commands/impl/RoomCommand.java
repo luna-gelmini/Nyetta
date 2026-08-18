@@ -15,33 +15,33 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-public class SalaCommand implements Command {
+public class RoomCommand implements Command {
     private final DatabaseManager dbManager;
     private final TemporaryChannelTreeService treeService;
 
-    public SalaCommand(DatabaseManager dbManager, TemporaryChannelTreeService treeService) {
+    public RoomCommand(DatabaseManager dbManager, TemporaryChannelTreeService treeService) {
         this.dbManager = dbManager;
         this.treeService = treeService;
     }
 
     @Override
     public String getName() {
-        return "sala";
+        return "room";
     }
 
     @Override
     public List<String> getAliases() {
-        return List.of("minhasala", "vc");
+        return List.of("vc", "temp");
     }
 
     @Override
     public String getDescription() {
-        return "Gerencia seu canal de voz temporário.";
+        return "Manage your temporary voice channel.";
     }
 
     @Override
     public String getUsage() {
-        return "sala <subcomando>";
+        return "room <limit|name|lock|unlock|allow|deny|autoowner|config>";
     }
 
     @Override
@@ -55,36 +55,36 @@ public class SalaCommand implements Command {
         String authorId = ctx.getAuthor().getId();
 
         if (ctx.getArgs().isEmpty() || ctx.getArgs().getFirst().isEmpty()) {
-            return ctx.reply("Uso: `!sala <limite/nome/trancar/destrancar/permitir/proibir/autoowner/config> [args]`");
+            return ctx.reply(usage(ctx, getUsage() + " [args]"));
         }
         String subCommand = ctx.getArgs().getFirst().toLowerCase();
 
         return switch (subCommand) {
-            case "limite" -> handleLimite(ctx, guildId, authorId);
-            case "nome" -> handleNome(ctx, guildId, authorId);
-            case "trancar" -> handleTrancar(ctx, guildId, authorId);
-            case "destrancar" -> handleDestrancar(ctx, guildId, authorId);
-            case "permitir" -> handlePermitir(ctx, guildId, authorId);
-            case "proibir" -> handleProibir(ctx, guildId, authorId);
+            case "limit" -> handleLimit(ctx, guildId, authorId);
+            case "name" -> handleName(ctx, guildId, authorId);
+            case "lock" -> handleLock(ctx, guildId, authorId);
+            case "unlock" -> handleUnlock(ctx, guildId, authorId);
+            case "allow" -> handleAllow(ctx, guildId, authorId);
+            case "deny" -> handleDeny(ctx, guildId, authorId);
             case "autoowner", "ao" -> handleAutoOwner(ctx, guildId, authorId);
             case "config" -> handleConfig(ctx, guildId, authorId);
             default -> ctx.reply(
-                    "Subcomando desconhecido. Use: limite, nome, trancar, destrancar, permitir, proibir, autoowner, config");
+                    "Unknown subcommand. Use: limit, name, lock, unlock, allow, deny, autoowner, config");
         };
     }
 
-    private CompletableFuture<Void> handleLimite(CommandContext ctx, String guildId, String authorId) {
+    private CompletableFuture<Void> handleLimit(CommandContext ctx, String guildId, String authorId) {
         if (ctx.getArgs().size() < 2)
-            return ctx.reply("Uso: `!sala limite <numero>`");
+            return ctx.reply(usage(ctx, "room limit <number>"));
         int limit;
         try {
             limit = Integer.parseInt(ctx.getArgs().get(1));
         } catch (NumberFormatException e) {
-            return ctx.reply("Informe um número válido.");
+            return ctx.reply("Need a valid number.");
         }
 
         if (limit < 0 || limit > 99)
-            return ctx.reply("O limite deve ser entre 0 e 99.");
+            return ctx.reply("Limit must be between 0 and 99.");
 
         CompletableFuture<Optional<TemporaryChannelRecord>> tempFuture = dbManager.getTemporaryChannelByOwner(guildId,
                 authorId);
@@ -104,20 +104,20 @@ public class SalaCommand implements Command {
                 payload.setUserLimit(finalLimit == 0 ? null : finalLimit);
                 return dbUpdate
                         .thenCompose(x -> ctx.getClient().modifyChannel(channelOpt.get().channelId, payload))
-                        .thenCompose(x -> ctx.reply("✅ Limite: " + (finalLimit == 0 ? "ilimitado" : finalLimit)));
+                        .thenCompose(x -> ctx.reply("✅ Limit: " + (finalLimit == 0 ? "unlimited" : finalLimit)));
             }
             return dbUpdate.thenCompose(
-                    x -> ctx.reply("✅ Preferência salva: " + (finalLimit == 0 ? "ilimitado" : finalLimit)));
+                    x -> ctx.reply("✅ Saved: " + (finalLimit == 0 ? "unlimited" : finalLimit)));
         });
     }
 
-    private CompletableFuture<Void> handleNome(CommandContext ctx, String guildId, String authorId) {
+    private CompletableFuture<Void> handleName(CommandContext ctx, String guildId, String authorId) {
         if (ctx.getArgs().size() < 2)
-            return ctx.reply("Uso: `!sala nome <nome>`");
+            return ctx.reply(usage(ctx, "room name <name>"));
         String nameTemplate = String.join(" ", ctx.getArgs().subList(1, ctx.getArgs().size()));
 
         if (nameTemplate.length() > 80)
-            return ctx.reply("Nome muito longo (max 80 caracteres).");
+            return ctx.reply("Name too long (max 80 characters).");
 
         CompletableFuture<Optional<TemporaryChannelRecord>> tempFuture = dbManager.getTemporaryChannelByOwner(guildId,
                 authorId);
@@ -148,17 +148,17 @@ public class SalaCommand implements Command {
                             payload.setName(finalName);
                             String displayName = finalName;
                             return ctx.getClient().modifyChannel(channelId, payload)
-                                    .thenCompose(y -> ctx.reply("✅ Nome: **" + displayName + "**"));
+                                    .thenCompose(y -> ctx.reply("✅ Name: **" + displayName + "**"));
                         }));
             }
-            return dbUpdate.thenCompose(x -> ctx.reply("✅ Template salvo: **" + finalTemplate + "**"));
+            return dbUpdate.thenCompose(x -> ctx.reply("✅ Saved template: **" + finalTemplate + "**"));
         });
     }
 
-    private CompletableFuture<Void> handleTrancar(CommandContext ctx, String guildId, String authorId) {
+    private CompletableFuture<Void> handleLock(CommandContext ctx, String guildId, String authorId) {
         return dbManager.getTemporaryChannelByOwner(guildId, authorId).thenCompose(channelOpt -> {
             if (channelOpt.isEmpty())
-                return ctx.reply("❌ Você não tem uma sala ativa.");
+                return ctx.reply("❌ You don't have an active room.");
             String channelId = channelOpt.get().channelId;
 
             return dbManager.getUserChannelPreference(guildId, authorId).thenCompose(prefsOpt -> {
@@ -174,15 +174,15 @@ public class SalaCommand implements Command {
                         EnumSet.noneOf(Permission.class));
 
                 return CompletableFuture.allOf(updatePrefs, denyEveryone, allowOwner)
-                        .thenCompose(v -> ctx.reply("🔒 Sala trancada!"));
+                        .thenCompose(v -> ctx.reply("🔒 Room locked."));
             });
         });
     }
 
-    private CompletableFuture<Void> handleDestrancar(CommandContext ctx, String guildId, String authorId) {
+    private CompletableFuture<Void> handleUnlock(CommandContext ctx, String guildId, String authorId) {
         return dbManager.getTemporaryChannelByOwner(guildId, authorId).thenCompose(channelOpt -> {
             if (channelOpt.isEmpty())
-                return ctx.reply("❌ Você não tem uma sala ativa.");
+                return ctx.reply("❌ You don't have an active room.");
             String channelId = channelOpt.get().channelId;
 
             return dbManager.getUserChannelPreference(guildId, authorId).thenCompose(prefsOpt -> {
@@ -194,52 +194,48 @@ public class SalaCommand implements Command {
                         TargetType.ROLE, EnumSet.of(Permission.CONNECT), EnumSet.noneOf(Permission.class));
 
                 return CompletableFuture.allOf(updatePrefs, allowEveryone)
-                        .thenCompose(v -> ctx.reply("🔓 Sala destrancada!"));
+                        .thenCompose(v -> ctx.reply("🔓 Room unlocked."));
             });
         });
     }
 
-    private CompletableFuture<Void> handlePermitir(CommandContext ctx, String guildId, String authorId) {
+    private CompletableFuture<Void> handleAllow(CommandContext ctx, String guildId, String authorId) {
         if (ctx.getArgs().size() < 2 || !ctx.getArgs().get(1).matches("<@!?[0-9]+>")) {
-            return ctx.reply("Uso: `!sala permitir @usuario`");
+            return ctx.reply(usage(ctx, "room allow @user"));
         }
         String targetId = ctx.getArgs().get(1).replaceAll("[<@!>]", "");
 
-        if (targetId == null)
-            return ctx.reply("Informe o usuário.");
         if (targetId.equals(authorId))
-            return ctx.reply("❌ Você não pode permitir a si mesmo.");
+            return ctx.reply("❌ You can't allow yourself.");
 
         return dbManager.getTemporaryChannelByOwner(guildId, authorId).thenCompose(channelOpt -> {
             if (channelOpt.isEmpty())
-                return ctx.reply("❌ Você não tem uma sala ativa.");
+                return ctx.reply("❌ You don't have an active room.");
             return ctx.getClient()
                     .editChannelPermissions(channelOpt.get().channelId, targetId, TargetType.MEMBER,
                             EnumSet.of(Permission.CONNECT, Permission.SPEAK, Permission.VIEW_CHANNEL),
                             EnumSet.noneOf(Permission.class))
-                    .thenCompose(v -> ctx.reply("✅ <@" + targetId + "> permitido!"));
+                    .thenCompose(v -> ctx.reply("✅ Allowed <@" + targetId + ">."));
         });
     }
 
-    private CompletableFuture<Void> handleProibir(CommandContext ctx, String guildId, String authorId) {
+    private CompletableFuture<Void> handleDeny(CommandContext ctx, String guildId, String authorId) {
         if (ctx.getArgs().size() < 2 || !ctx.getArgs().get(1).matches("<@!?[0-9]+>")) {
-            return ctx.reply("Uso: `!sala proibir @usuario`");
+            return ctx.reply(usage(ctx, "room deny @user"));
         }
         String targetId = ctx.getArgs().get(1).replaceAll("[<@!>]", "");
 
-        if (targetId == null)
-            return ctx.reply("Informe o usuário.");
         if (targetId.equals(authorId))
-            return ctx.reply("❌ Você não pode proibir a si mesmo.");
+            return ctx.reply("❌ You can't deny yourself.");
 
         return dbManager.getTemporaryChannelByOwner(guildId, authorId).thenCompose(channelOpt -> {
             if (channelOpt.isEmpty())
-                return ctx.reply("❌ Você não tem uma sala ativa.");
+                return ctx.reply("❌ You don't have an active room.");
             return ctx.getClient()
                     .editChannelPermissions(channelOpt.get().channelId, targetId, TargetType.MEMBER,
                             EnumSet.noneOf(Permission.class),
                             EnumSet.of(Permission.CONNECT, Permission.SPEAK, Permission.VIEW_CHANNEL))
-                    .thenCompose(v -> ctx.reply("🚫 <@" + targetId + "> bloqueado!"));
+                    .thenCompose(v -> ctx.reply("🚫 Blocked <@" + targetId + ">."));
         });
     }
 
@@ -252,17 +248,23 @@ public class SalaCommand implements Command {
                     .updateUserChannelPreference(guildId, authorId, prefs.preferredUserLimit, prefs.preferredName,
                             prefs.defaultLocked, prefs.autoOwnerSwitching)
                     .thenCompose(v -> ctx.reply(
-                            "Transferência automática: **" + (newStatus == 1 ? "✅ ATIVADA" : "❌ DESATIVADA") + "**"));
+                            "Auto owner transfer: **" + (newStatus == 1 ? "ON" : "OFF") + "**"));
         });
     }
 
     private CompletableFuture<Void> handleConfig(CommandContext ctx, String guildId, String authorId) {
+        String prefix = ctx.getConfig().getCommandPrefix();
         return dbManager.getUserChannelPreference(guildId, authorId).thenCompose(prefsOpt -> {
             UserChannelPreference prefs = prefsOpt.orElse(new UserChannelPreference(guildId, authorId));
-            String nome = prefs.preferredName != null ? prefs.preferredName : "(padrão)";
-            String limite = prefs.preferredUserLimit != null ? String.valueOf(prefs.preferredUserLimit) : "0";
-            return ctx.reply("⚙️ Config da sala\nNome: **" + nome + "**\nLimite: **" + limite
-                    + "**\nUse `!sala nome` / `!sala limite` / `!sala trancar` para alterar.");
+            String name = prefs.preferredName != null ? prefs.preferredName : "(default)";
+            String limit = prefs.preferredUserLimit != null ? String.valueOf(prefs.preferredUserLimit) : "0";
+            return ctx.reply("Room config\nName: **" + name + "**\nLimit: **" + limit
+                    + "**\nUse `" + prefix + "room name` / `" + prefix + "room limit` / `" + prefix
+                    + "room lock` to change.");
         });
+    }
+
+    private static String usage(CommandContext ctx, String spec) {
+        return "Usage: `" + ctx.getConfig().getCommandPrefix() + spec + "`";
     }
 }

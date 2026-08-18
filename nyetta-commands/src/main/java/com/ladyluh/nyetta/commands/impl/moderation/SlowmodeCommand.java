@@ -14,17 +14,17 @@ public class SlowmodeCommand implements Command {
 
     @Override
     public List<String> getAliases() {
-        return List.of("slow", "modolento");
+        return List.of("slow");
     }
 
     @Override
     public String getDescription() {
-        return "Define o intervalo entre mensagens neste canal (em segundos).";
+        return "Set this channel's slowmode in seconds.";
     }
 
     @Override
     public String getUsage() {
-        return "slowmode <segundos|off>";
+        return "slowmode <seconds|off>";
     }
 
     @Override
@@ -40,7 +40,7 @@ public class SlowmodeCommand implements Command {
     @Override
     public CompletableFuture<Void> execute(CommandContext ctx) {
         if (ctx.getArgs().isEmpty()) {
-            return ctx.reply("Uso: `" + getUsage() + "`");
+            return ctx.reply("Usage: `" + getUsage() + "`");
         }
         String raw = ctx.getArgs().getFirst().trim();
         int seconds;
@@ -50,17 +50,17 @@ public class SlowmodeCommand implements Command {
             try {
                 seconds = Integer.parseInt(raw);
             } catch (NumberFormatException e) {
-                return ctx.reply("Valor inválido. Use um número de segundos ou `off`.");
+                return ctx.reply("Invalid value. Use seconds or `off`.");
             }
         }
         if (seconds < 0 || seconds > 21600) {
-            return ctx.reply("Slowmode deve ser entre 0 e 21600 segundos.");
+            return ctx.reply("Slowmode must be between 0 and 21600 seconds.");
         }
 
         String body = "{\"rate_limit_per_user\":" + seconds + "}";
         return ctx.getClient().rest().channels.updateChannel(ctx.getChannelId(), body)
                 .thenCompose(ignored -> ctx.reply(seconds == 0
-                        ? "Slowmode desativado."
-                        : "Slowmode definido para " + seconds + "s."));
+                        ? "Slowmode off."
+                        : "Slowmode set to " + seconds + "s."));
     }
 }

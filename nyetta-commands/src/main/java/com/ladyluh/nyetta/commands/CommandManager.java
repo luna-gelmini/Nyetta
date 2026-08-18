@@ -46,7 +46,7 @@ public class CommandManager {
         addCommand(new XPCommand(dbManager, scoreboardImageService));
         addCommand(new XPTopCommand(dbManager, scoreboardImageService));
         addCommand(new ConfigCommand(dbManager));
-        addCommand(new SalaCommand(dbManager, treeService));
+        addCommand(new RoomCommand(dbManager, treeService));
         addCommand(new BanCommand());
         addCommand(new KickCommand());
         addCommand(new MuteCommand());
@@ -68,6 +68,7 @@ public class CommandManager {
         addCommand(new ChooseCommand());
         addCommand(new PollCommand());
         addCommand(new StatsCommand(client));
+        LOGGER.info("registered {} commands", uniqueCommands.size());
     }
 
     private void addCommand(Command command) {
@@ -76,7 +77,6 @@ public class CommandManager {
         for (String alias : command.getAliases()) {
             commands.put(alias.toLowerCase(), command);
         }
-        LOGGER.info("Command '{}' and aliases {} registered.", command.getName(), command.getAliases());
     }
 
     public Command getCommand(String name) {
@@ -94,7 +94,7 @@ public class CommandManager {
         }
 
         if (command.isGuildOnly() && event.getMessage().getGuildId() == null) {
-            client.sendMessage(event.getChannelId(), "Este comando só pode ser usado em um servidor.");
+            client.sendMessage(event.getChannelId(), "This command can only be used in a server.");
             return;
         }
 
@@ -103,41 +103,47 @@ public class CommandManager {
 
         if (command.requiresAdministrator()) {
             if (ctx.getGuildId() == null) {
-                client.sendMessage(event.getChannelId(), "Este comando só pode ser usado em um servidor.");
+                client.sendMessage(event.getChannelId(), "This command can only be used in a server.");
                 return;
             }
             try {
                 flux.api.entities.Member member = client.getGuildMember(ctx.getGuildId(), ctx.getAuthor().getId()).join();
                 if (member == null) {
-                    client.sendMessage(event.getChannelId(), "Erro ao identificar suas permissões.");
+                    client.sendMessage(event.getChannelId(), "Could not check your permissions.");
                     return;
                 }
-                LOGGER.info("[AUTH] (Message) Checking administrator permission for {} ({})", member.getEffectiveName(), member.getId());
+                LOGGER.debug("checking administrator for {} ({})", member.getEffectiveName(), member.getId());
                 Boolean hasPerm = member.hasPermission(flux.api.payload.permission.Permission.ADMINISTRATOR).join();
-                LOGGER.info("[AUTH] (Message) Result for {}: {}", member.getEffectiveName(), hasPerm);
+                LOGGER.debug("administrator check for {}: {}", member.getEffectiveName(), hasPerm);
                 if (hasPerm == null || !hasPerm) {
-                    ctx.reply("Você não tem permissão para usar este comando. (Requer Administrador)");
+                    ctx.reply("You don't have permission to use this command. (Requires Administrator)");
                     return;
                 }
             } catch (Exception e) {
-                LOGGER.error("[AUTH] Failed to check permissions:", e);
-                ctx.reply("Erro ao verificar permissões.");
+                LOGGER.error("failed to check administrator permission", e);
+                ctx.reply("Failed to check permissions.");
                 return;
             }
         }
-        LOGGER.info("Running command '{}' for user '{}' with args: {}", command.getName(),
-                ctx.getAuthor().getAsTag(), args);
+        LOGGER.info("{}  {}{}{}", ctx.getAuthor().getAsTag(), config.getCommandPrefix(), command.getName(),
+                args.isEmpty() ? "" : " " + String.join(" ", args));
 
-        command.execute(ctx).exceptionally(ex -> {
-            LOGGER.error("Failed to run command '{}' for user '{}':", command.getName(),
-                    ctx.getAuthor().getAsTag(), ex);
+        try {
+            command.execute(ctx).exceptionally(ex -> {
+                LOGGER.error("Failed to run command '{}' for user '{}':", command.getName(),
+                        ctx.getAuthor().getAsTag(), ex);
 
-            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-            ctx.reply("Ocorreu um erro ao executar este comando: " + cause.getMessage()).exceptionally(e -> {
-                LOGGER.error("Failed to send command error message:", e);
+                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                ctx.reply("This command failed: " + cause.getMessage()).exceptionally(e -> {
+                    LOGGER.error("Failed to send command error message:", e);
+                    return null;
+                });
                 return null;
             });
-            return null;
-        });
+        } catch (Exception ex) {
+            LOGGER.error("Failed to run command '{}' for user '{}':", command.getName(),
+                    ctx.getAuthor().getAsTag(), ex);
+            ctx.reply("This command failed: " + ex.getMessage());
+        }
     }
 }

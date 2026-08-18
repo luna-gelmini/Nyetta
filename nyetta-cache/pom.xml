@@ -19,8 +19,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>app.flux</groupId>
-            <artifactId>flux</artifactId>
+            <groupId>app.fluxer4j</groupId>
+            <artifactId>fluxer4j</artifactId>
             <version>1.0.0</version>
         </dependency>
         <dependency>

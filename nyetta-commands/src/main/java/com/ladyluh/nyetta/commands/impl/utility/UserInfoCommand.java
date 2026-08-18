@@ -20,7 +20,7 @@ public class UserInfoCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Mostra informações sobre um usuário.";
+        return "Show info about a user.";
     }
 
     @Override
@@ -45,11 +45,11 @@ public class UserInfoCommand implements Command {
     }
 
     private CompletableFuture<String> showUserInfo(User user) {
-        String info = "**Informações do Usuário**\n" +
+        String info = "**User info**\n" +
                 "ID: " + user.getId() + "\n" +
                 "Username: " + user.getUsername() + "\n" +
-                "Nome Global: " + (user.getGlobalName() != null ? user.getGlobalName() : "N/A") + "\n" +
-                "Bot: " + (user.isBot() ? "Sim" : "Não");
+                "Global name: " + (user.getGlobalName() != null ? user.getGlobalName() : "N/A") + "\n" +
+                "Bot: " + (user.isBot() ? "Yes" : "No");
 
         return CompletableFuture.completedFuture(info);
     }

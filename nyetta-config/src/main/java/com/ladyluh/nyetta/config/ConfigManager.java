@@ -29,7 +29,7 @@ public class ConfigManager {
         Path envFile = EnvFile.find();
         if (envFile != null) {
             properties.putAll(EnvFile.load(envFile));
-            LOGGER.info("Loaded secrets from {}", envFile.toAbsolutePath());
+            LOGGER.info("loaded .env from {}", envFile.toAbsolutePath());
         } else {
             LOGGER.warn("No .env found in {} (or parent). Copy .env.example to .env",
                     System.getProperty("user.dir"));
@@ -69,7 +69,7 @@ public class ConfigManager {
                 first("GATEWAY_URL"),
                 first("MEDIA_CDN_URL"),
                 first("APP_BASE_URL"));
-        LOGGER.info("API environment: REST={}, Gateway={}, CDN={}, App={}",
+        LOGGER.debug("api {} gateway {} cdn {} app {}",
                 ApiEnvironment.getApiBaseUrl(),
                 ApiEnvironment.getGatewayUrl(),
                 ApiEnvironment.getMediaCdnUrl(),
@@ -177,6 +177,6 @@ public class ConfigManager {
                 LOGGER.warn("XP role key is not a level: {}", key);
             }
         }
-        LOGGER.info("Loaded {} XP role mappings.", xpRoleMappings.size());
+        LOGGER.info("xp roles: {}", xpRoleMappings.size());
     }
 }

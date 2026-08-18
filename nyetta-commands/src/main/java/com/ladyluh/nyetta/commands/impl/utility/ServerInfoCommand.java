@@ -19,7 +19,7 @@ public class ServerInfoCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Mostra informações sobre o servidor.";
+        return "Show info about this server.";
     }
 
     @Override
@@ -36,14 +36,14 @@ public class ServerInfoCommand implements Command {
     public CompletableFuture<Void> execute(CommandContext ctx) {
         return ctx.getClient().getGuildById(ctx.getGuildId())
                 .thenCompose(guild -> {
-                    String info = "**Informações do Servidor**\n" +
-                            "Nome: " + guild.getName() + "\n" +
+                    String info = "**Server info**\n" +
+                            "Name: " + guild.getName() + "\n" +
                             "ID: " + guild.getId() + "\n" +
                             "Owner ID: " + guild.getOwnerId();
                     return ctx.reply(info);
                 })
                 .exceptionally(throwable -> {
-                    ctx.reply("Falha ao buscar informações: " + throwable.getMessage());
+                    ctx.reply("Failed to fetch info: " + throwable.getMessage());
                     return null;
                 });
     }

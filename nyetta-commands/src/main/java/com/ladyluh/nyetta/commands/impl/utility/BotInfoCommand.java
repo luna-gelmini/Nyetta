@@ -19,7 +19,7 @@ public class BotInfoCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Mostra informações sobre o bot.";
+        return "Show info about the bot.";
     }
 
     @Override
@@ -35,9 +35,9 @@ public class BotInfoCommand implements Command {
     @Override
     public CompletableFuture<Void> execute(CommandContext ctx) {
         String info = "**Nyetta Info**\n" +
-                "Library: Fl.ux\n" +
+                "Library: Fluxer4J\n" +
                 "Developer: LadyLuh\n" +
-                "Versão: 0.1.0";
+                "Version: 0.1.0";
         return ctx.reply(info);
     }
 }

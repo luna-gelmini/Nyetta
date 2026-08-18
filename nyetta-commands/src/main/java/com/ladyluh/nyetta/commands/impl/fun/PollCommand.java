@@ -12,9 +12,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 public class PollCommand implements Command {
-    private static final String[] EMOJIS = {
+    private static final String[] NUMBER_EMOJIS = {
             "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"
     };
+    private static final String[] YES_NO_EMOJIS = {"👍", "👎"};
 
     @Override
     public String getName() {
@@ -23,17 +24,17 @@ public class PollCommand implements Command {
 
     @Override
     public List<String> getAliases() {
-        return List.of("enquete", "voto");
+        return List.of("vote");
     }
 
     @Override
     public String getDescription() {
-        return "Cria uma enquete com reações.";
+        return "Create a reaction poll.";
     }
 
     @Override
     public String getUsage() {
-        return "poll <pergunta> | <opção 1> | <opção 2> [| ...]";
+        return "poll <question> [| option 1 | option 2 ...]";
     }
 
     @Override
@@ -43,31 +44,43 @@ public class PollCommand implements Command {
 
     @Override
     public CompletableFuture<Void> execute(CommandContext ctx) {
+        if (ctx.getArgs().isEmpty()) {
+            return usage(ctx);
+        }
+        String raw = String.join(" ", ctx.getArgs()).trim();
+        if (!raw.contains("|")) {
+            return postPoll(ctx, raw, List.of(), YES_NO_EMOJIS);
+        }
         List<String> parts = splitOptions(ctx.getArgs());
         if (parts.size() < 3) {
-            return ctx.reply("Uso: `" + getUsage() + "`");
+            return usage(ctx);
         }
         String question = parts.getFirst();
         List<String> options = parts.subList(1, parts.size());
-        if (options.size() > EMOJIS.length) {
-            return ctx.reply("No máximo " + EMOJIS.length + " opções.");
+        if (options.size() > NUMBER_EMOJIS.length) {
+            return ctx.reply("At most " + NUMBER_EMOJIS.length + " options.");
         }
+        return postPoll(ctx, question, options, Arrays.copyOf(NUMBER_EMOJIS, options.size()));
+    }
 
-        StringBuilder body = new StringBuilder("📊 **").append(question).append("**\n");
+    private CompletableFuture<Void> usage(CommandContext ctx) {
+        return ctx.reply("Usage: `" + ctx.getConfig().getCommandPrefix() + getUsage() + "`");
+    }
+
+    private CompletableFuture<Void> postPoll(CommandContext ctx, String question, List<String> options, String[] emojis) {
+        StringBuilder body = new StringBuilder("📊 **").append(question).append("**");
         for (int i = 0; i < options.size(); i++) {
-            body.append(EMOJIS[i]).append(" ").append(options.get(i)).append("\n");
+            body.append("\n").append(emojis[i]).append(" ").append(options.get(i));
         }
-
-        return ctx.getClient().sendMessage(ctx.getChannelId(), body.toString().trim())
-                .thenCompose(message -> addReactions(ctx, message, options.size()))
+        return ctx.getClient().sendMessage(ctx.getChannelId(), body.toString())
+                .thenCompose(message -> addReactions(ctx, message, emojis))
                 .thenAccept(v -> {
                 });
     }
 
-    private CompletableFuture<Void> addReactions(CommandContext ctx, Message message, int count) {
+    private CompletableFuture<Void> addReactions(CommandContext ctx, Message message, String[] emojis) {
         CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
-        for (int i = 0; i < count; i++) {
-            final String emoji = EMOJIS[i];
+        for (String emoji : emojis) {
             chain = chain.thenCompose(v -> ctx.getClient().rest().channels
                     .addReaction(ctx.getChannelId(), message.getId(), emoji, Map.of())
                     .thenApply(ignored -> null));

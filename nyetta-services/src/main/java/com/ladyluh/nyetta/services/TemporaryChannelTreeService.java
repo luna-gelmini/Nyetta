@@ -43,7 +43,7 @@ public class TemporaryChannelTreeService {
                         return CompletableFuture.completedFuture(null);
                     }
 
-                    LOGGER.info("Updating tree prefixes for {} channels in guild {}.", channels.size(), guildId);
+                    LOGGER.debug("updating tree prefixes for {} channels in guild {}", channels.size(), guildId);
                     return updateChannelPrefixes(channels);
                 })
                 .exceptionally(ex -> {
@@ -152,7 +152,7 @@ public class TemporaryChannelTreeService {
             return t;
         });
 
-        LOGGER.info("Starting periodic prefix checks every {} minutes for guild {}",
+        LOGGER.debug("periodic prefix checks every {} min for guild {}",
                 PERIODIC_CHECK_MINUTES, guildId);
 
         scheduler.scheduleAtFixedRate(
@@ -177,7 +177,7 @@ public class TemporaryChannelTreeService {
                         return;
                     }
 
-                    LOGGER.info("Checking prefixes of {} channels in guild {}.", channels.size(), guildId);
+                    LOGGER.debug("checking prefixes of {} channels in guild {}", channels.size(), guildId);
                     int lastIndex = channels.size() - 1;
 
                     for (int i = 0; i < channels.size(); i++) {
@@ -196,7 +196,7 @@ public class TemporaryChannelTreeService {
                         }
                     }
 
-                    LOGGER.info("Prefix check finished for guild {}.", guildId);
+                    LOGGER.debug("prefix check finished for guild {}", guildId);
                 })
                 .exceptionally(ex -> {
                     LOGGER.error("Periodic prefix check failed:", ex);

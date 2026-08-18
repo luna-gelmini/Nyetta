@@ -6,11 +6,14 @@ import com.ladyluh.nyetta.cache.VoiceStateCacheManager;
 import com.ladyluh.nyetta.config.ConfigManager;
 import com.ladyluh.nyetta.database.DatabaseManager;
 import flux.model.gateway.MessageCreateEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public class CommandContext {
+    private static final Logger LOGGER = LoggerFactory.getLogger(CommandContext.class);
     private final FluxClient client;
     private final ConfigManager config;
     private final DatabaseManager dbManager;
@@ -90,7 +93,7 @@ public class CommandContext {
         return client.sendMessage(getChannelId(), payload)
                 .thenAccept(m -> {})
                 .exceptionally(ex -> {
-                    System.err.println("Erro ao enviar resposta: " + ex.getMessage());
+                    LOGGER.error("Failed to send reply", ex);
                     return null;
                 });
     }

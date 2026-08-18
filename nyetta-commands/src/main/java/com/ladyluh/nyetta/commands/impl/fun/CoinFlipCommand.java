@@ -23,7 +23,7 @@ public class CoinFlipCommand implements Command {
 
     @Override
     public String getDescription() {
-        return "Joga uma moeda.";
+        return "Flip a coin.";
     }
 
     @Override

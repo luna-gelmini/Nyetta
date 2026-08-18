@@ -26,17 +26,17 @@ public class HelpCommand implements Command {
 
     @Override
     public List<String> getAliases() {
-        return List.of("comandos", "cmds");
+        return List.of("commands", "cmds");
     }
 
     @Override
     public String getDescription() {
-        return "Lista os comandos disponíveis.";
+        return "List available commands.";
     }
 
     @Override
     public String getUsage() {
-        return "help [comando]";
+        return "help [command]";
     }
 
     @Override
@@ -50,10 +50,10 @@ public class HelpCommand implements Command {
         if (!ctx.getArgs().isEmpty() && !ctx.getArgs().getFirst().isBlank()) {
             Command command = commandManager.getCommand(ctx.getArgs().getFirst());
             if (command == null) {
-                return ctx.reply("Comando não encontrado. Use `" + prefix + "help`.");
+                return ctx.reply("Unknown command. Use `" + prefix + "help`.");
             }
             return ctx.reply("**" + prefix + command.getName() + "** — " + command.getDescription()
-                    + "\nUso: `" + prefix + command.getUsage() + "`");
+                    + "\nUsage: `" + prefix + command.getUsage() + "`");
         }
 
         String list = commandManager.listCommands().stream()
@@ -61,10 +61,10 @@ public class HelpCommand implements Command {
                 .map(command -> "`" + prefix + command.getName() + "` — " + command.getDescription())
                 .collect(Collectors.joining("\n"));
         EmbedBuilder embed = new EmbedBuilder()
-                .setTitle("Comandos da Nyetta")
+                .setTitle("Nyetta commands")
                 .setColor(new Color(0x5865F2))
-                .setDescription("Prefixo: `" + prefix + "`\n\n" + list
-                        + "\n\nDetalhe: `" + prefix + "help <comando>`");
+                .setDescription("Prefix: `" + prefix + "`\n\n" + list
+                        + "\n\nDetails: `" + prefix + "help <command>`");
         return ctx.getClient()
                 .sendMessage(ctx.getChannelId(), new MessageBuilder().addEmbed(embed).build())
                 .thenAccept(m -> {

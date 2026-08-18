@@ -39,7 +39,7 @@ public class GuildConfig {
         this.autoAssignRoleId = "";
         this.tempHubChannelId = "";
         this.tempChannelCategoryId = "";
-        this.tempChannelNamePrefix = "Sala de ";
+        this.tempChannelNamePrefix = "%username%'s room";
         this.defaultTempChannelUserLimit = 5;
         this.defaultTempChannelLock = 0;
     }

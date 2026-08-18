@@ -15,17 +15,17 @@ public class ChannelInfoCommand implements Command {
 
     @Override
     public List<String> getAliases() {
-        return List.of("ci", "canal");
+        return List.of("ci");
     }
 
     @Override
     public String getDescription() {
-        return "Mostra informações deste canal (ou de um ID).";
+        return "Show info about this channel (or an ID).";
     }
 
     @Override
     public String getUsage() {
-        return "channelinfo [canal]";
+        return "channelinfo [channel]";
     }
 
     @Override
@@ -42,16 +42,16 @@ public class ChannelInfoCommand implements Command {
         return ctx.getClient().getChannelById(channelId)
                 .thenCompose(channel -> ctx.reply(format(channel)))
                 .exceptionally(ex -> {
-                    ctx.reply("Não encontrei esse canal.");
+                    ctx.reply("Could not find that channel.");
                     return null;
                 });
     }
 
     private static String format(Channel channel) {
-        String type = channel.getType() == null ? "desconhecido" : channel.getType().name();
-        return "**Canal**\n"
-                + "Nome: " + channel.getName() + "\n"
+        String type = channel.getType() == null ? "unknown" : channel.getType().name();
+        return "**Channel**\n"
+                + "Name: " + channel.getName() + "\n"
                 + "ID: `" + channel.getId() + "`\n"
-                + "Tipo: " + type;
+                + "Type: " + type;
     }
 }

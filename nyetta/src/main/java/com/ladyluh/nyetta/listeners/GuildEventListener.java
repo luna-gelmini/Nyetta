@@ -38,9 +38,9 @@ public class GuildEventListener implements EventListener {
     }
 
     private void handleReady(ReadyEvent event) {
-        LOGGER.info("Bot is READY! Logged in as: {} (ID: {})",
+        LOGGER.info("ready as {} ({})",
                 event.getSelfUser().getAsTag(), event.getSelfUser().getId());
-        LOGGER.info("Session ID: {}, Resume URL: {}", event.getSessionId(), event.getResumeGatewayUrl());
+        LOGGER.debug("session {} resume {}", event.getSessionId(), event.getResumeGatewayUrl());
     }
 
     private void handleGuildMemberAdd(GuildMemberAddEvent event) {
