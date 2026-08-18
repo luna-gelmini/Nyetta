@@ -43,6 +43,10 @@ public class TemporaryChannelListener implements EventListener {
     private final ConcurrentHashMap<String, ReentrantLock> channelLocks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Boolean> pendingDeletions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> pendingMoves = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> rejectedMoveDestinations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> failedMoveCooldownUntil = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Boolean> occupiedChannels = new ConcurrentHashMap<>();
+    private static final long FAILED_MOVE_COOLDOWN_MS = 20_000;
 
     public TemporaryChannelListener(ConfigManager config, FluxClient client, DatabaseManager dbManager,
             VoiceStateCacheManager voiceStateCacheManager, TemporaryChannelTreeService treeService) {
@@ -112,6 +116,17 @@ public class TemporaryChannelListener implements EventListener {
 
         String userId = event.getUserId();
         String newChannelId = event.getChannelId();
+        String pendingDest = pendingMoves.get(userId);
+        if (pendingDest != null) {
+            LOGGER.debug("Ignoring voice state for {} while move to {} is in progress.", userId, pendingDest);
+            return;
+        }
+
+        if (isRejectedGhostJoin(userId, newChannelId)) {
+            LOGGER.debug("Ignoring ghost join for {} to {} after a failed move.", userId, newChannelId);
+            return;
+        }
+
         String oldChannelId = voiceStateCacheManager.getUserVoiceChannelId(guildId, userId);
 
         if (Objects.equals(oldChannelId, newChannelId)) {
@@ -125,15 +140,14 @@ public class TemporaryChannelListener implements EventListener {
             boolean wasChannelEmpty = voiceStateCacheManager.getMembersInVoiceChannel(guildId, oldChannelId)
                     .size() <= 1;
             voiceStateCacheManager.onVoiceStateUpdate(event);
-            if (!(newChannelId == null && pendingMoves.containsKey(userId))) {
-                checkChannelOnUserLeave(guildId, oldChannelId, userId, wasChannelEmpty);
-            }
+            checkChannelOnUserLeave(guildId, oldChannelId, userId, wasChannelEmpty);
         } else {
             voiceStateCacheManager.onVoiceStateUpdate(event);
         }
 
         if (newChannelId != null) {
-            pendingMoves.remove(userId);
+            occupiedChannels.put(newChannelId, true);
+            clearRejectedMove(userId, newChannelId);
             dbManager.getGuildConfig(guildId)
                     .thenAccept(configOpt -> {
                         GuildConfig guildConfig = applyEnvDefaults(configOpt.orElse(new GuildConfig(guildId)));
@@ -146,6 +160,8 @@ public class TemporaryChannelListener implements EventListener {
                         LOGGER.error("Failed to load guild {} config for hub join:", guildId, ex);
                         return null;
                     });
+        } else {
+            deleteUnoccupiedOwnedChannel(guildId, userId);
         }
     }
 
@@ -155,15 +171,15 @@ public class TemporaryChannelListener implements EventListener {
             LOGGER.debug("Ignoring duplicate hub join for {} (already creating or moving).", userId);
             return;
         }
-        pendingMoves.put(userId, "");
 
         dbManager.getTemporaryChannelByOwner(guildId, userId)
                 .thenCompose(existingChannelOpt -> {
                     if (existingChannelOpt.isPresent()) {
                         String existingChannelId = existingChannelOpt.get().channelId;
                         return client.getChannelById(existingChannelId)
-                                .thenCompose(channel -> moveUserToTemporaryChannel(event, guildId, userId,
-                                        existingChannelId))
+                                .thenCompose(channel -> applyChannelPermissions(channel, guildId, userId, null)
+                                        .thenCompose(v -> moveUserToTemporaryChannel(event, guildId, userId,
+                                                existingChannelId)))
                                 .handle((ok, ex) -> {
                                     if (ex != null && isNotFound(ex)) {
                                         LOGGER.warn("Stale temp channel {} for user {}. Recreating.", existingChannelId,
@@ -191,6 +207,7 @@ public class TemporaryChannelListener implements EventListener {
                                                 "Temporary channel created but bot cannot move user {} (403). "
                                                         + "If this user is the guild owner or has a higher role than the bot, Fluxer will refuse the move.",
                                                 userId);
+                                        pendingMoves.remove(userId);
                                         String keptChannelId = createdChannelIdRef.get();
                                         if (keptChannelId != null) {
                                             LOGGER.warn(
@@ -231,9 +248,12 @@ public class TemporaryChannelListener implements EventListener {
         pendingMoves.put(userId, channelId);
         return moveUserToChannelWithFallback(event, guildId, userId, channelId)
                 .whenComplete((ok, ex) -> {
+                    pendingMoves.remove(userId, channelId);
                     if (ex != null) {
-                        pendingMoves.remove(userId, channelId);
+                        markFailedMove(userId, channelId);
                         logVoiceMoveFailure(userId, channelId, ex);
+                    } else {
+                        markSuccessfulMove(guildId, userId, channelId);
                     }
                 });
     }
@@ -249,6 +269,69 @@ public class TemporaryChannelListener implements EventListener {
                     LOGGER.warn("Move with connection_id {} failed for {}, retrying without it.",
                             connectionId, userId);
                     return client.modifyGuildMemberVoiceChannel(guildId, userId, channelId, null);
+                });
+    }
+
+    private void markSuccessfulMove(String guildId, String userId, String channelId) {
+        pendingMoves.remove(userId);
+        rejectedMoveDestinations.remove(userId);
+        failedMoveCooldownUntil.remove(userId);
+        occupiedChannels.put(channelId, true);
+        voiceStateCacheManager.setUserChannel(guildId, userId, channelId);
+    }
+
+    private void markFailedMove(String userId, String channelId) {
+        pendingMoves.remove(userId);
+        rejectedMoveDestinations.put(userId, channelId);
+        failedMoveCooldownUntil.put(userId, System.currentTimeMillis() + FAILED_MOVE_COOLDOWN_MS);
+    }
+
+    private boolean isRejectedGhostJoin(String userId, String newChannelId) {
+        if (newChannelId == null) {
+            return false;
+        }
+        if (!isFailedMoveCooldownActive(userId)) {
+            return false;
+        }
+        return newChannelId.equals(rejectedMoveDestinations.get(userId));
+    }
+
+    private boolean isFailedMoveCooldownActive(String userId) {
+        Long until = failedMoveCooldownUntil.get(userId);
+        if (until == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() >= until) {
+            failedMoveCooldownUntil.remove(userId);
+            rejectedMoveDestinations.remove(userId);
+            return false;
+        }
+        return true;
+    }
+
+    private void clearRejectedMove(String userId, String newChannelId) {
+        String rejected = rejectedMoveDestinations.get(userId);
+        if (rejected != null && !rejected.equals(newChannelId)) {
+            rejectedMoveDestinations.remove(userId);
+            failedMoveCooldownUntil.remove(userId);
+        }
+    }
+
+    private void deleteUnoccupiedOwnedChannel(String guildId, String userId) {
+        if (isFailedMoveCooldownActive(userId)) {
+            return;
+        }
+        dbManager.getTemporaryChannelByOwner(guildId, userId)
+                .thenAccept(existing -> existing.ifPresent(record -> {
+                    if (!occupiedChannels.containsKey(record.channelId)
+                            && voiceStateCacheManager.isVoiceChannelEmpty(guildId, record.channelId)) {
+                        LOGGER.info("Owner {} left voice. Deleting unoccupied channel {}.", userId, record.channelId);
+                        deleteTemporaryChannelInternal(record.channelId, guildId);
+                    }
+                }))
+                .exceptionally(ex -> {
+                    LOGGER.error("Failed to check unoccupied channel for {}:", userId, ex);
+                    return null;
                 });
     }
 
@@ -425,7 +508,7 @@ public class TemporaryChannelListener implements EventListener {
                                     String channelId = createdChannel.getId();
                                     createdChannelIdRef.set(channelId);
                                     return dbManager.addTemporaryChannel(channelId, guildId, userId)
-                                            .thenCompose(v -> applyChannelPermissions(createdChannel, userId,
+                                            .thenCompose(v -> applyChannelPermissions(createdChannel, guildId, userId,
                                                     finalDefaultLocked))
                                             .thenCompose(v -> treeService.updateTreePrefixes(guildId))
                                             .thenCompose(v -> {
@@ -443,9 +526,12 @@ public class TemporaryChannelListener implements EventListener {
                                                 pendingMoves.put(userId, channelId);
                                                 return moveUserToChannelWithFallback(event, guildId, userId, channelId)
                                                         .whenComplete((ok, moveEx) -> {
+                                                            pendingMoves.remove(userId, channelId);
                                                             if (moveEx != null) {
-                                                                pendingMoves.remove(userId, channelId);
+                                                                markFailedMove(userId, channelId);
                                                                 logVoiceMoveFailure(userId, channelId, moveEx);
+                                                            } else {
+                                                                markSuccessfulMove(guildId, userId, channelId);
                                                             }
                                                         })
                                                         .thenCompose(ignored -> CompletableFuture.completedFuture(createdChannel));
@@ -455,7 +541,8 @@ public class TemporaryChannelListener implements EventListener {
         });
     }
 
-    private CompletableFuture<Void> applyChannelPermissions(Channel channel, String ownerId, Integer defaultLock) {
+    private CompletableFuture<Void> applyChannelPermissions(Channel channel, String guildId, String ownerId,
+            Integer defaultLock) {
         boolean isLocked = defaultLock != null && defaultLock == 1;
 
         EnumSet<Permission> allowEveryone = isLocked
@@ -465,8 +552,9 @@ public class TemporaryChannelListener implements EventListener {
                 ? EnumSet.of(Permission.CONNECT)
                 : EnumSet.noneOf(Permission.class);
 
+        String everyoneRoleId = channel.getGuildId() != null ? channel.getGuildId() : guildId;
         CompletableFuture<Void> everyonePerms = client.editChannelPermissions(
-                channel.getId(), channel.getGuildId(), TargetType.ROLE, allowEveryone, denyEveryone)
+                channel.getId(), everyoneRoleId, TargetType.ROLE, allowEveryone, denyEveryone)
                 .exceptionally(ex -> {
                     LOGGER.error("Failed to apply @everyone permissions on channel {}:", channel.getId(), ex);
                     return null;
@@ -481,7 +569,21 @@ public class TemporaryChannelListener implements EventListener {
                     return null;
                 });
 
-        return CompletableFuture.allOf(everyonePerms, ownerPerms);
+        CompletableFuture<Void> botPerms = CompletableFuture.completedFuture(null);
+        User self = client.getSelfUser();
+        if (self != null) {
+            botPerms = client.editChannelPermissions(
+                    channel.getId(), self.getId(), TargetType.MEMBER,
+                    EnumSet.of(Permission.CONNECT, Permission.SPEAK, Permission.VIEW_CHANNEL,
+                            Permission.MOVE_MEMBERS, Permission.MANAGE_CHANNELS),
+                    EnumSet.noneOf(Permission.class))
+                    .exceptionally(ex -> {
+                        LOGGER.error("Failed to apply bot permissions on channel {}:", channel.getId(), ex);
+                        return null;
+                    });
+        }
+
+        return CompletableFuture.allOf(everyonePerms, ownerPerms, botPerms);
     }
 
     private void checkChannelOnUserLeave(String guildId, String channelId, String userIdWhoLeft,
@@ -507,6 +609,12 @@ public class TemporaryChannelListener implements EventListener {
 
                     try {
                         if (wasLastMember || voiceStateCacheManager.isVoiceChannelEmpty(guildId, channelId)) {
+                            if (!occupiedChannels.containsKey(channelId) && isFailedMoveCooldownActive(userIdWhoLeft)) {
+                                LOGGER.debug(
+                                        "Channel {} is empty but was never occupied after a failed move. Keeping it.",
+                                        channelId);
+                                return;
+                            }
                             LOGGER.info("Channel {} is empty. Deleting.", channelId);
                             deleteTemporaryChannelInternal(channelId, guildId);
                             return;
@@ -601,7 +709,7 @@ public class TemporaryChannelListener implements EventListener {
                                                     return client.modifyChannel(channelId, payload)
                                                             .thenCompose(v2 -> client.getChannelById(channelId))
                                                             .thenCompose(channel -> applyChannelPermissions(
-                                                                    channel, newOwnerId, prefs.defaultLocked));
+                                                                    channel, guildId, newOwnerId, prefs.defaultLocked));
                                                 });
                                     }));
                 })
@@ -661,6 +769,7 @@ public class TemporaryChannelListener implements EventListener {
                 .whenComplete((v, ex) -> {
                     pendingDeletions.remove(channelId);
                     channelLocks.remove(channelId);
+                    occupiedChannels.remove(channelId);
                 });
     }
 }

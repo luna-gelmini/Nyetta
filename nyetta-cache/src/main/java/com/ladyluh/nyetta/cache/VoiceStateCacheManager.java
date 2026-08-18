@@ -41,6 +41,18 @@ public class VoiceStateCacheManager {
         LOGGER.debug("voice cache ready for guild {} ({} channels)", guildId, guildChannelsMap.size());
     }
 
+    public void setUserChannel(String guildId, String userId, String channelId) {
+        if (guildId == null || userId == null) {
+            return;
+        }
+        ConcurrentHashMap<String, ConcurrentSkipListSet<String>> guildChannelsMap =
+                guildVoiceChannelMembers.computeIfAbsent(guildId, k -> new ConcurrentHashMap<>());
+        removeUserFromAllChannels(guildChannelsMap, userId);
+        if (channelId != null) {
+            guildChannelsMap.computeIfAbsent(channelId, k -> new ConcurrentSkipListSet<>()).add(userId);
+        }
+    }
+
     public void onVoiceStateUpdate(VoiceStateUpdateEvent event) {
         String guildId = event.getGuildId();
         String userId = event.getUserId();
@@ -51,15 +63,7 @@ public class VoiceStateCacheManager {
         ConcurrentHashMap<String, ConcurrentSkipListSet<String>> guildChannelsMap =
                 guildVoiceChannelMembers.computeIfAbsent(guildId, k -> new ConcurrentHashMap<>());
 
-        guildChannelsMap.forEach((channelIdInMap, usersInChannel) -> {
-            if (usersInChannel.remove(userId)) {
-                LOGGER.debug("Cache (update): user {} removed from old channel {}.", userId, channelIdInMap);
-                if (usersInChannel.isEmpty()) {
-                    guildChannelsMap.remove(channelIdInMap);
-                    LOGGER.debug("Cache (update): old channel {} is empty and was removed from cache.", channelIdInMap);
-                }
-            }
-        });
+        removeUserFromAllChannels(guildChannelsMap, userId);
 
         if (newChannelId != null) {
             guildChannelsMap.computeIfAbsent(newChannelId, k -> new ConcurrentSkipListSet<>()).add(userId);
@@ -91,5 +95,17 @@ public class VoiceStateCacheManager {
                     return Optional.empty();
                 })
                 .orElse(null);
+    }
+
+    private void removeUserFromAllChannels(
+            ConcurrentHashMap<String, ConcurrentSkipListSet<String>> guildChannelsMap, String userId) {
+        guildChannelsMap.forEach((channelIdInMap, usersInChannel) -> {
+            if (usersInChannel.remove(userId)) {
+                LOGGER.debug("Cache (update): user {} removed from old channel {}.", userId, channelIdInMap);
+                if (usersInChannel.isEmpty()) {
+                    guildChannelsMap.remove(channelIdInMap);
+                }
+            }
+        });
     }
 }
