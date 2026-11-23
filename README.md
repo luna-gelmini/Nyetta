@@ -1,5 +1,7 @@
 # Nyetta
 
+![Nyetta](docs/header.png)
+
 ```
 cp .env.example .env
 mvn -pl nyetta -am package
